@@ -15,6 +15,7 @@ import (
 	"github.com/maxiepax/go-via/dhcpd"
 	"github.com/maxiepax/go-via/models"
 	"github.com/maxiepax/go-via/secrets"
+	"github.com/maxiepax/go-via/uefi"
 	"github.com/maxiepax/go-via/websockets"
 	"github.com/rakyll/statik/fs"
 
@@ -102,14 +103,33 @@ func main() {
 	// ks.cfg is served at top to not place it behind BasicAuth
 	r.GET("ks.cfg", api.Ks(key))
 
+	// middleware to log static file requests
+	r.Use(func(c *gin.Context) {
+		if c.Request.URL.Path == "/esx.iso" {
+			logrus.WithFields(logrus.Fields{
+				"path":   c.Request.URL.Path,
+				"method": c.Request.Method,
+				"ip":     c.ClientIP(),
+			}).Info("static_file_request")
+		}
+		c.Next()
+	})
+
+	// uefi-https boot
+	//r.GET("/esx/mboot.efi", uefi.UEFImboot())
+	//r.GET("/esx/crypto64.efi", uefi.UEFIcrypto64())
+	r.GET("/esx/*filepath", uefi.Files(conf))
+
 	// middleware to check if user is logged in
 	r.Use(func(c *gin.Context) {
+
+		// Check for basic auth
 		username, password, hasAuth := c.Request.BasicAuth()
 		if !hasAuth {
 			logrus.WithFields(logrus.Fields{
 				"login": "unauthorized request",
 			}).Info("auth")
-			c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
+			//c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -121,7 +141,7 @@ func main() {
 				"username": username,
 				"status":   "supplied username does not exist",
 			}).Info("auth")
-			c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
+			//c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -137,7 +157,7 @@ func main() {
 				"username": username,
 				"status":   "invalid password supplied",
 			}).Info("auth")
-			c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
+			//c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -152,13 +172,16 @@ func main() {
 	ui := r.Group("/")
 	{
 		ui.GET("/web/*all", gin.WrapH(http.FileServer(statikFS)))
-
 		ui.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
 	v1 := r.Group("/v1")
 	{
-		//v1.GET("log", logServer.Handle)
+
+		/*login := v1.Group("/login")
+		{
+			login.POST("", api.Login)
+		}*/
 
 		pools := v1.Group("/pools")
 		{

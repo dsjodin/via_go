@@ -49,7 +49,7 @@ func readHandler(conf *config.Config) func(string, io.ReaderFrom) error {
 		var host models.Host
 		db.DB.Preload(clause.Associations).First(&host, "ip = ?", ip)
 
-		//get the image info that correlates with the pool the ip is in
+		//get the image info that correlates with the host
 		var image models.Image
 		db.DB.First(&image, "id = ?", host.Group.ImageID)
 
@@ -249,11 +249,10 @@ func serveBootCfg(filename string, host models.Host, image models.Image, rf io.R
 		}*/
 
 	// add allowLegacyCPU=true to kernelopt
-	if options.AllowLegacyCPU {
-		re = regexp.MustCompile("kernelopt=.*")
-		o = re.Find(bc)
-		bc = re.ReplaceAllLiteral(bc, append(o, []byte(" allowLegacyCPU=true")...))
-	}
+	re = regexp.MustCompile("kernelopt=.*")
+	o = re.Find(bc)
+	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" allowLegacyCPU=true")...))
+
 
 	// replace prefix with prefix=foldername
 	split := strings.Split(image.Path, "/")

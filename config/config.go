@@ -12,7 +12,7 @@ import (
 
 type Config struct {
 	Debug   		bool
-	Port    		int 	`default:"8443"`
+	Port    		int 	`default:"443"`
 	File    		string
 	Network 		Network
 	DisableDhcp 	bool

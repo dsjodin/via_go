@@ -1,0 +1,1 @@
+curl --header "Content-Type: application/json"   --user admin:VMware1! https://localhost:443/v1/images/1   --insecure   --request DELETE | jq

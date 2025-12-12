@@ -17,7 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
-	//"github.com/davecgh/go-spew/spew"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/gopacket"
 	"github.com/mdlayher/raw"
 )
@@ -88,15 +88,6 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 		return nil, fmt.Errorf("ignored because mac address is not flagged for re-imaging")
 	}
 
-	/*
-	if leaseIP == nil {
-		leaseIP, err = pool.Next()
-		if err != nil {
-			return nil, err
-		}
-	}
-	*/
-
 	resp = &layers.DHCPv4{
 		Operation:    layers.DHCPOpReply,
 		HardwareType: layers.LinkTypeEthernet,
@@ -117,9 +108,6 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 }
 
 func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DHCPv4, error) {
-	/*if opt82, ok := option82.Decode(req); ok {
-		spew.Dump(opt82)
-	}*/
 
 	// Find all reimage hosts that is not yet assigned a pool
 	var reimageHosts []models.Host
@@ -195,7 +183,7 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 		}
 	}
 
-	// Make sure the host isnt already used
+	// Make sure the address isnt already used
 	if lease != nil {
 		if err := pool.IsAvailableExcept(requestedIP, req.ClientHWAddr.String()); err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -387,7 +375,6 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 		byte(layers.DHCPOptT2),
 		byte(layers.DHCPOptLeaseTime),
 		byte(layers.DHCPOptServerID),
-		//byte(66),
 		byte(67),
 	}
 	for _, v := range defaultOptions {
@@ -395,6 +382,12 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 			requestedOptions[v] = struct{}{}
 		}
 	}
+
+	//get the hosts group object to determine the booth method used.
+	var h models.Host
+	if err := db.DB.Preload("Group").First(&h, lease.ID).Error; err == nil {
+	}
+	bootmethod := h.Group.BootMethod
 
 	// Add the requested options to the response
 	var leaseTime float64 = float64(pool.LeaseTime)
@@ -423,10 +416,26 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 		// Try to generate the missing option
 		code := layers.DHCPOpt(opCode)
 		switch code {
-		/*case 66:
-		resp.Options = append(resp.Options, layers.NewDHCPOption(code, ip.To4())) */
 		case 67:
-			resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte("mboot.efi")))
+			if bootmethod == "pxe" {
+				resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte("mboot.efi")))
+				logrus.WithFields(logrus.Fields{
+					"boot method": bootmethod,
+					"filepath":    "mboot.efi",
+				}).Info("dhcp")
+			} else if bootmethod == "https-dhcp" {
+				resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte("https://"+ip.String()+"/esx/mboot.efi")))
+				logrus.WithFields(logrus.Fields{
+					"boot method": bootmethod,
+					"filepath":    "https://"+ip.String()+"/esx/mboot.efi",
+				}).Info("dhcp")
+			} else if bootmethod == "http-dhcp" {
+				resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte("http://"+ip.String()+"/esx/mboot.efi")))
+				logrus.WithFields(logrus.Fields{
+					"boot method": bootmethod,
+					"filepath":    "http://"+ip.String()+"/esx/mboot.efi",
+				}).Info("dhcp")
+			}
 		case layers.DHCPOptSubnetMask:
 			resp.Options = append(resp.Options, layers.NewDHCPOption(code, net.CIDRMask(pool.Netmask, 32)))
 		case layers.DHCPOptClasslessStaticRoute:
@@ -470,6 +479,7 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 		}
 
 	}
+	spew.Dump(resp.Options)
 
 	// Add the remaining options (that werent requested) in the end
 	for opCode, options := range byOpCode {
@@ -493,15 +503,27 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 
 func Init(intf string) {
 	//create the device classes for x86 and arm
-	//64bit x86 UEFI
-	var x86_64 models.DeviceClass
-
-	if res := db.DB.FirstOrCreate(&x86_64, models.DeviceClass{DeviceClassForm: models.DeviceClassForm{Name: "PXE-UEFI_x64", VendorClass: "PXEClient:Arch:00007"}}); res.Error != nil {
+	//64bit x86 UEFI PXE
+	var x86_64_pxe models.DeviceClass
+	if res := db.DB.FirstOrCreate(&x86_64_pxe, models.DeviceClass{DeviceClassForm: models.DeviceClassForm{Name: "PXE-UEFI_x64", VendorClass: "PXEClient:Arch:00007"}}); res.Error != nil {
 		logrus.Warning(res.Error)
 	}
-	//64bit ARM UEFI
-	var arm_64 models.DeviceClass
-	if res := db.DB.FirstOrCreate(&arm_64, models.DeviceClass{DeviceClassForm: models.DeviceClassForm{Name: "PXE-UEFI_ARM64", VendorClass: "PXEClient:Arch:00011"}}); res.Error != nil {
+
+	//64bit x86 UEFI HTTP
+	var x86_64_http models.DeviceClass
+	if res := db.DB.FirstOrCreate(&x86_64_http, models.DeviceClass{DeviceClassForm: models.DeviceClassForm{Name: "HTTP-UEFI_x64", VendorClass: "HTTPClient:Arch:00016"}}); res.Error != nil {
+		logrus.Warning(res.Error)
+	}
+
+	//64bit ARM UEFI PXE
+	var arm_64_pxe models.DeviceClass
+	if res := db.DB.FirstOrCreate(&arm_64_pxe, models.DeviceClass{DeviceClassForm: models.DeviceClassForm{Name: "PXE-UEFI_ARM64", VendorClass: "PXEClient:Arch:00011"}}); res.Error != nil {
+		logrus.Warning(res.Error)
+	}
+
+	//64bit ARM UEFI HTTP
+	var arm_64_http models.DeviceClass
+	if res := db.DB.FirstOrCreate(&arm_64_http, models.DeviceClass{DeviceClassForm: models.DeviceClassForm{Name: "HTTP-UEFI_ARM64", VendorClass: "HTTPClient:Arch:00011"}}); res.Error != nil {
 		logrus.Warning(res.Error)
 	}
 
@@ -560,8 +582,6 @@ func Init(intf string) {
 			ipv4, _ := ipv4Layer.(*layers.IPv4)
 			udp, _ := udpLayer.(*layers.UDP)
 			req, _ := dhcpLayer.(*layers.DHCPv4)
-
-			//spew.Dump(req)
 
 			t := findMsgType(req)
 			sourceNet := ip
@@ -624,7 +644,6 @@ func Init(intf string) {
 
 			c.WriteTo(buf.Bytes(), src)
 
-			//spew.Dump(resp)
 			logrus.WithFields(logrus.Fields{
 				"response":   findMsgType(resp).String(),
 				"client-mac": req.ClientHWAddr.String(),

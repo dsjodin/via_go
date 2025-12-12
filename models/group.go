@@ -22,6 +22,7 @@ type GroupForm struct {
 	CallbackURL string         `json:"callbackurl"`
 	BootDisk    string         `json:"bootdisk" gorm:"type:varchar(255)"`
 	Options     datatypes.JSON `json:"options" sql:"type:JSONB" swaggertype:"object,string"`
+	BootMethod  string         `json:"bootmethod" gorm:"type:varchar(255)"`
 }
 
 type NoPWGroupForm struct {
@@ -39,6 +40,8 @@ type NoPWGroupForm struct {
 	CallbackURL string         `json:"callbackurl"`
 	BootDisk    string         `json:"bootdisk" gorm:"type:varchar(255)"`
 	Options     datatypes.JSON `json:"options" sql:"type:JSONB" swaggertype:"object,string"`
+	BootMethod  string         `json:"bootmethod" gorm:"type:varchar(255)"`
+
 }
 
 type Group struct {
@@ -77,7 +80,6 @@ type GroupOptions struct {
 	SSH                  bool `json:"ssh"`
 	SuppressShellWarning bool `json:"suppressshellwarning"`
 	EraseDisks           bool `json:"erasedisks"`
-	AllowLegacyCPU       bool `json:"allowlegacycpu"`
 	Certificate          bool `json:"certificate"`
 	CreateVMFS           bool `json:"createvmfs"`
 }

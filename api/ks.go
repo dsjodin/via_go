@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"text/template"
 	"strings"
-	"os"
 	"encoding/base64"
 
 	"github.com/gin-gonic/gin"
@@ -32,10 +31,10 @@ rootpw {{ .password }}
 clearpart --overwritevmfs --alldrives {{ end }}
 
 {{ if .bootdisk }}
-install --disk=/vmfs/devices/disks/{{.bootdisk}} --overwritevmfs --novmfsondisk {{ if not .legacycpu }} --forceunsupportedinstall {{ end }}
+install --disk=/vmfs/devices/disks/{{.bootdisk}} --overwritevmfs --novmfsondisk --forceunsupportedinstall --ignoreprereqwarnings --ignoreprereqerrors
 {{ else }}
 # Install on the first local disk available on machine
-install --overwritevmfs {{ if not .createvmfs }} --novmfsondisk {{ end }} --firstdisk="localesx,usb,ahci,vmw_ahci,VMware" --forceunsupportedinstall
+install --overwritevmfs {{ if not .createvmfs }} --novmfsondisk {{ end }} --firstdisk="localesx,usb,ahci,vmw_ahci,VMware" --forceunsupportedinstall --ignoreprereqwarnings --ignoreprereqerrors
 {{ end }}
 
 # Set the network to static on the first network adapter
@@ -142,7 +141,6 @@ func Ks(key string) func(c *gin.Context) {
 			"bootdisk":   item.Group.BootDisk,
 			"vlan":       item.Group.Vlan,
 			"createvmfs": options.CreateVMFS,
-			"legacycpu":  options.AllowLegacyCPU,
 		}
 
 		ks := defaultks
