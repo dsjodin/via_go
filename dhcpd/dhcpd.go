@@ -2,16 +2,16 @@ package dhcpd
 
 import (
 	"bytes"
-	"database/sql"
+	//"database/sql"
 	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/google/gopacket/layers"
-	"github.com/maxiepax/go-via/api"
+	//"github.com/maxiepax/go-via/api"
 	"github.com/maxiepax/go-via/db"
 	"github.com/maxiepax/go-via/models"
 	"github.com/sirupsen/logrus"
@@ -33,8 +33,8 @@ func processPacket(t layers.DHCPMsgType, req *layers.DHCPv4, sourceNet net.IP, i
 	case layers.DHCPMsgTypeInform:
 		return nil, fmt.Errorf("ignored, inform type")
 	case layers.DHCPMsgTypeDecline:
-		return processDecline(req, sourceNet, ip)
-
+		return nil, fmt.Errorf("an ip address conflict was detected, this should not be possible")
+		//return processDecline(req, sourceNet, ip)
 	case layers.DHCPMsgTypeUnspecified:
 		return nil, fmt.Errorf("ignored, unspecified type")
 	case layers.DHCPMsgTypeOffer:
@@ -44,23 +44,28 @@ func processPacket(t layers.DHCPMsgType, req *layers.DHCPv4, sourceNet net.IP, i
 	case layers.DHCPMsgTypeNak:
 		return nil, fmt.Errorf("ignored, nak type")
 	}
-
 	return nil, fmt.Errorf("unknown dhcp request type")
 }
 
 func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *layers.DHCPv4, err error) {
 	// Find all reimage hosts that is not yet assigned a pool
+	/*
 	var reimageHosts []models.Host
 	if res := db.DB.Where("pool_id IS NULL").Where("reimage = 1").Find(&reimageHosts); res.Error != nil {
 		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			return nil, res.Error
 		}
 	}
+	*/
 
+	/*
 	pool, err := api.FindPool(sourceNet.String())
 	if err != nil {
 		return nil, err
 	}
+	*/
+
+	/*
 
 	// Make a list of all reimage and pool hosts
 	hosts := append(reimageHosts, pool.Hosts...)
@@ -82,17 +87,24 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 			break
 		}
 	}
+	*/
 
+
+	/*
 	// Dont answer pools with "only serve requested" flag set
 	if pool.OnlyServeReimage && (lease == nil || !lease.Reimage) {
 		return nil, fmt.Errorf("ignored because mac address is not flagged for re-imaging")
 	}
+	*/
+
+	host, _ := findHostByMAC(req.ClientHWAddr.String())
 
 	resp = &layers.DHCPv4{
 		Operation:    layers.DHCPOpReply,
 		HardwareType: layers.LinkTypeEthernet,
 		Xid:          req.Xid,
-		YourClientIP: leaseIP,
+		//YourClientIP: leaseIP,
+		YourClientIP: net.ParseIP(host.IP),
 		RelayAgentIP: req.RelayAgentIP,
 		ClientHWAddr: req.ClientHWAddr,
 		NextServerIP: ip.To4(),
@@ -100,7 +112,7 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 
 	resp.Options = append(resp.Options, layers.NewDHCPOption(layers.DHCPOptMessageType, []byte{byte(layers.DHCPMsgTypeOffer)}))
 
-	AddOptions(req, resp, *pool, lease, ip)
+	AddOptions(req, resp, host, ip)
 
 	//req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHosts, lease *models.Host, ip net.IP
 
@@ -110,6 +122,7 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DHCPv4, error) {
 
 	// Find all reimage hosts that is not yet assigned a pool
+	/*
 	var reimageHosts []models.Host
 	if res := db.DB.Where("pool_id IS NULL").Where("reimage = 1").Find(&reimageHosts); res.Error != nil {
 		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -125,6 +138,8 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 
 	// Make a list of all reimage and pool hosts
 	hosts := append(reimageHosts, pool.Hosts...)
+	*/
+
 
 	// Extract the requested IP
 	var requestedIP net.IP = req.ClientIP
@@ -133,6 +148,7 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 			requestedIP = net.IP(v.Data)
 		}
 	}
+
 
 	// Start building the response
 	resp := &layers.DHCPv4{
@@ -144,6 +160,9 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 		NextServerIP: ip.To4(),
 	}
 
+	host, _ := findHostByMAC(req.ClientHWAddr.String())
+
+	/*
 	// Try to find the lease in our host list
 	var lease *models.Host
 	for _, v := range hosts {
@@ -211,19 +230,29 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 			},
 		}
 	}
+	*/
 
+	/*
 	// Respond with the same hostname
 	for _, v := range req.Options {
 		if v.Type == layers.DHCPOptHostname {
 			lease.Hostname = string(v.Data)
 		}
 	}
-
+	*/
 	resp.YourClientIP = requestedIP
+	/*
+	pool, err := api.FindPool("172.16.60.0")
+	if err != nil {
+		return nil, err
+	}
+	*/
 
 	resp.Options = append(resp.Options, layers.NewDHCPOption(layers.DHCPOptMessageType, []byte{byte(layers.DHCPMsgTypeAck)}))
-	AddOptions(req, resp, *pool, lease, ip)
+	AddOptions(req, resp, host, ip)
 
+
+	/*
 	lease.IP = requestedIP.String()
 	lease.PoolID = models.NullInt32{sql.NullInt32{int32(pool.ID), true}}
 	lease.LastSeenRelay = req.RelayAgentIP.String()
@@ -241,6 +270,7 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 		db.DB.Exec("DELETE FROM hosts WHERE ip=? AND reimage=0 AND expires <= datetime('now', 'utc')", lease.IP)
 		db.DB.Save(lease)
 	}
+	*/
 
 	return resp, nil
 }
@@ -270,6 +300,7 @@ func listMissingOptions(req *layers.DHCPv4, resp *layers.DHCPv4) string {
 }
 
 // a IP address conflict was detected, add/update the address table to block that address from being used for a while (lease time)
+/*
 func processDecline(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DHCPv4, error) {
 
 	pool, err := api.FindPool(sourceNet.String())
@@ -317,15 +348,20 @@ func processDecline(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 
 	return nil, nil
 }
+*/
 
 // AddOptions will try to add all requested options and the manually specified ones to the response
-func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHosts, lease *models.Host, ip net.IP) error {
+/* func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHosts, lease *models.Host, ip net.IP) error { */
+func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *models.Host, ip net.IP) error {
+
 	var options []models.Option
+	/*
 	var leaseID interface{}
 
 	if lease != nil {
 		leaseID = lease.ID
 	}
+	*/
 
 	// Try to find the device class
 	var deviceClass models.DeviceClass
@@ -335,10 +371,12 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 		}
 	}
 
+	/*
 	if res := db.DB.Where("((pool_id = 0 AND device_class_id = 0 AND host_id = 0) OR pool_id = ? OR host_id = ?) AND (device_class_id = 0 OR device_class_id = ?)", pool.ID, leaseID, deviceClass.ID).Order("device_class_id desc").Order("host_id desc").Order("pool_id desc").Find(&options); res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 
 		return res.Error
 	}
+	*/
 
 	// Group options by opcode
 	byOpCode := make(map[byte][]models.Option)
@@ -383,17 +421,19 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 		}
 	}
 
-	//get the hosts group object to determine the booth method used.
+	//get the hosts group object to determine the boot method used.
 	var h models.Host
 	if err := db.DB.Preload("Group").First(&h, lease.ID).Error; err == nil {
 	}
 	bootmethod := h.Group.BootMethod
 
 	// Add the requested options to the response
-	var leaseTime float64 = float64(pool.LeaseTime)
+	var leaseTime float64 = float64(3600)
+	/*
 	if leaseTime == 0 {
 		leaseTime = 3600
 	}
+	*/
 	for opCode := range requestedOptions {
 		if options, ok := byOpCode[opCode]; ok {
 			for _, v := range options {
@@ -437,21 +477,25 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 				}).Info("dhcp")
 			}
 		case layers.DHCPOptSubnetMask:
-			resp.Options = append(resp.Options, layers.NewDHCPOption(code, net.CIDRMask(pool.Netmask, 32)))
+			cidrMask, _ := NetmaskToCIDR(h.Group.Netmask)
+			resp.Options = append(resp.Options, layers.NewDHCPOption(code, net.CIDRMask(cidrMask, 32)))
 		case layers.DHCPOptClasslessStaticRoute:
+			cidrMask, _ := NetmaskToCIDR(h.Group.Netmask)
 			var b bytes.Buffer
-			b.Write([]byte{byte(pool.Netmask)})
+			b.Write([]byte{byte(cidrMask)})
 
 			// Only write the non-zero octets.
-			dstLen := (pool.Netmask + 7) / 8
-			b.Write(net.ParseIP(pool.Gateway).To4()[:dstLen])
+			dstLen := (cidrMask + 7) / 8
+			b.Write(net.ParseIP(h.Group.Gateway).To4()[:dstLen])
 
-			b.Write(net.ParseIP(pool.Gateway).To4())
+			b.Write(net.ParseIP(h.Group.Gateway).To4())
 			resp.Options = append(resp.Options, layers.NewDHCPOption(code, b.Bytes()))
 		case layers.DHCPOptRouter:
-			resp.Options = append(resp.Options, layers.NewDHCPOption(code, net.ParseIP(pool.Gateway).To4()))
+			resp.Options = append(resp.Options, layers.NewDHCPOption(code, net.ParseIP(h.Group.Gateway).To4()))
 		case layers.DHCPOptBroadcastAddr:
-			b, err := pool.LastAddr()
+			/*
+			cidrMask, _ := NetmaskToCIDR(h.Group.Netmask)
+			b, err := BroadcastAddress(h.Group.Gateway, strconv.Itoa(cidrMask))
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"opcode": opCode,
@@ -460,8 +504,26 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHos
 				}).Warn("dhcp: could not get broadcast address")
 				continue
 			}
-
 			resp.Options = append(resp.Options, layers.NewDHCPOption(code, b))
+			*/
+			cidrMask, _ := NetmaskToCIDR(h.Group.Netmask)
+			bcastStr, err := BroadcastAddress(h.Group.Gateway, strconv.Itoa(cidrMask))
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"opcode": opCode,
+					"name":   layers.DHCPOpt(opCode).String(),
+					"err":    err,
+				}).Warn("dhcp: could not get broadcast address")
+				continue
+			}
+			bcastIP := net.ParseIP(bcastStr).To4()
+			if bcastIP == nil {
+				logrus.WithFields(logrus.Fields{
+					"broadcast": bcastStr,
+				}).Warn("dhcp: invalid broadcast IP")
+				continue
+			}
+    		resp.Options = append(resp.Options, layers.NewDHCPOption(code, bcastIP))
 		case layers.DHCPOptT1:
 			resp.Options = append(resp.Options, models.NewUint32Option(layers.DHCPOptT1, int(leaseTime*0.5))) // renewal time
 		case layers.DHCPOptT2:
@@ -719,4 +781,138 @@ func FindIPv4Addr(ifi *net.Interface) (net.IP, *net.IPNet, error) {
 	}
 
 	return nil, nil, fmt.Errorf("could not find IPv4 address")
+}
+
+// FindHostByMAC returns the host record for the given MAC (case-insensitive).
+// Returns (nil, nil) when no host is found.
+func findHostByMAC(mac string) (*models.Host, error) {
+    var host models.Host
+    res := db.DB.
+        Preload("Group").
+        Preload("Pool").
+        Where("LOWER(mac) = ?", strings.ToLower(mac)).
+        First(&host)
+
+    if res.Error != nil {
+        if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+            return nil, nil
+        }
+        return nil, res.Error
+    }
+	if host.Reimage == true {
+    	return &host, nil
+	} else {
+		return nil, fmt.Errorf("%s is not flagged for re-imaging", host.Hostname)
+	}
+}
+
+// NetworkAddress returns the IPv4 network address for the provided gateway IP
+// and netmask. netmask may be either a CIDR length ("24" or "/24") or dotted
+// decimal ("255.255.255.0"). Returned network is the base network address
+// (e.g. "192.168.1.0").
+// Returns an error for invalid input or non-IPv4 addresses.
+func NetworkAddress(gateway string, netmask string) (string, error) {
+    ip := net.ParseIP(strings.TrimSpace(gateway)).To4()
+    if ip == nil {
+        return "", errors.New("invalid IPv4 gateway")
+    }
+
+    m := strings.TrimSpace(netmask)
+
+    // accept "/24" or "24"
+    if strings.HasPrefix(m, "/") {
+        m = m[1:]
+    }
+
+    // If netmask is numeric (CIDR bits)
+    if bits, err := strconv.Atoi(m); err == nil {
+        if bits < 0 || bits > 32 {
+            return "", errors.New("invalid CIDR mask length")
+        }
+        mask := net.CIDRMask(bits, 32)
+        network := ip.Mask(mask)
+        return network.String(), nil
+    }
+
+    // Otherwise expect dotted decimal like "255.255.255.0"
+    pm := net.ParseIP(m)
+    if pm == nil {
+        return "", errors.New("invalid netmask format")
+    }
+    pm4 := pm.To4()
+    if pm4 == nil {
+        return "", errors.New("invalid IPv4 netmask")
+    }
+    mask := net.IPMask(pm4)
+    network := ip.Mask(mask)
+    return network.String(), nil
+}
+
+func BroadcastAddress(gateway string, netmask string) (string, error) {
+    ip := net.ParseIP(strings.TrimSpace(gateway)).To4()
+    if ip == nil {
+        return "", errors.New("invalid IPv4 gateway")
+    }
+
+    m := strings.TrimSpace(netmask)
+    if strings.HasPrefix(m, "/") {
+        m = m[1:]
+    }
+
+    var mask net.IPMask
+    if bits, err := strconv.Atoi(m); err == nil {
+        if bits < 0 || bits > 32 {
+            return "", errors.New("invalid CIDR mask length")
+        }
+        mask = net.CIDRMask(bits, 32)
+    } else {
+        pm := net.ParseIP(m)
+        if pm == nil {
+            return "", errors.New("invalid netmask format")
+        }
+        pm4 := pm.To4()
+        if pm4 == nil {
+            return "", errors.New("invalid IPv4 netmask")
+        }
+        mask = net.IPMask(pm4)
+    }
+
+    network := ip.Mask(mask)
+    bcast := make(net.IP, net.IPv4len)
+    for i := 0; i < net.IPv4len; i++ {
+        bcast[i] = network[i] | ^mask[i]
+    }
+    return bcast.String(), nil
+}
+
+// NetmaskToCIDR converts a netmask in dotted-decimal ("255.255.255.0"),
+// or CIDR formats ("24" or "/24") to the CIDR prefix length (e.g. 24).
+func NetmaskToCIDR(maskStr string) (int, error) {
+    m := strings.TrimSpace(maskStr)
+    if strings.HasPrefix(m, "/") {
+        m = strings.TrimPrefix(m, "/")
+    }
+
+    // If already numeric (CIDR)
+    if bits, err := strconv.Atoi(m); err == nil {
+        if bits < 0 || bits > 32 {
+            return 0, fmt.Errorf("invalid CIDR length: %d", bits)
+        }
+        return bits, nil
+    }
+
+    // Expect dotted decimal
+    ip := net.ParseIP(m)
+    if ip == nil {
+        return 0, fmt.Errorf("invalid netmask: %q", maskStr)
+    }
+    ip4 := ip.To4()
+    if ip4 == nil {
+        return 0, fmt.Errorf("invalid IPv4 netmask: %q", maskStr)
+    }
+    ones, bits := net.IPMask(ip4).Size()
+    if bits != 32 {
+        return 0, fmt.Errorf("unexpected mask size: %d", bits)
+    }
+    return ones, nil
 }
