@@ -26,3 +26,4 @@ statik
 statik/statik.go
 images
 images/
+iso/*
