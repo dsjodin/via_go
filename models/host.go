@@ -10,7 +10,7 @@ type HostForm struct {
 	Hostname     string    `json:"hostname" gorm:"type:varchar(255)"`
 	Domain       string    `json:"domain" gorm:"type:varchar(255)"`
 	Reimage      bool      `json:"reimage" gorm:"type:bool;index:uniqIp,unique"`
-	PoolID       NullInt32 `json:"pool_id" gorm:"type:BIGINT" swaggertype:"integer"`
+	//PoolID       NullInt32 `json:"pool_id" gorm:"type:BIGINT" swaggertype:"integer"`
 	GroupID      NullInt32 `json:"group_id" gorm:"type:BIGINT" swaggertype:"integer"`
 	Progress     int       `json:"progress" gorm:"type:INT"`
 	Progresstext string    `json:"progresstext" gorm:"type:varchar(255)"`
@@ -20,7 +20,7 @@ type HostForm struct {
 type Host struct {
 	ID int `json:"id" gorm:"primary_key"`
 
-	Pool  Pool  `json:"pool" gorm:"foreignkey:PoolID"`
+	//Pool  Pool  `json:"pool" gorm:"foreignkey:PoolID"`
 	Group Group `json:"group" gorm:"foreignkey:GroupID"`
 
 	HostForm

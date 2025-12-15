@@ -7,7 +7,7 @@ import (
 )
 
 type GroupForm struct {
-	PoolID      int            `json:"pool_id" gorm:"type:BIGINT"`
+	//PoolID      int            `json:"pool_id" gorm:"type:BIGINT"`
 	Name        string         `json:"name" gorm:"type:varchar(255)"`
 	DNS         string         `json:"dns" gorm:"type:varchar(255)"`
 	NTP         string         `json:"ntp" gorm:"type:varchar(255)"`
@@ -26,7 +26,7 @@ type GroupForm struct {
 }
 
 type NoPWGroupForm struct {
-	PoolID      int            `json:"pool_id" gorm:"type:BIGINT"`
+	//PoolID      int            `json:"pool_id" gorm:"type:BIGINT"`
 	Name        string         `json:"name" gorm:"type:varchar(255)"`
 	DNS         string         `json:"dns" gorm:"type:varchar(255)"`
 	NTP         string         `json:"ntp" gorm:"type:varchar(255)"`
@@ -49,7 +49,7 @@ type Group struct {
 
 	GroupForm
 
-	Pool    *Pool     `json:"pool,omitempty" gorm:"foreignkey:PoolID"`
+	//Pool    *Pool     `json:"pool,omitempty" gorm:"foreignkey:PoolID"`
 	Option  []Option  `json:"option,omitempty" gorm:"foreignkey:PoolID"`
 	Host    []Host `json:"host,omitempty" gorm:"foreignkey:GroupID"`
 
@@ -63,7 +63,7 @@ type NoPWGroup struct {
 
 	NoPWGroupForm
 
-	Pool    *Pool     `json:"pool,omitempty" gorm:"foreignkey:PoolID"`
+	//Pool    *Pool     `json:"pool,omitempty" gorm:"foreignkey:PoolID"`
 	Option  []Option  `json:"option,omitempty" gorm:"foreignkey:PoolID"`
 	Host    []Host    `json:"host,omitempty" gorm:"foreignkey:GroupID"`
 

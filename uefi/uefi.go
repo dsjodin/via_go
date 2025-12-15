@@ -188,6 +188,10 @@ func ipv4MaskString(m []byte) string {
 func serveBootCfg(filepath string, host models.Host, image models.Image, conf *config.Config, localip string, remoteip string) ([]byte, error) {
 	//if the filepath is boot.cfg, or /boot.cfg, we serve the boot cfg that belongs to that build. unfortunately, it seems boot.cfg or /boot.cfg varies in builds.
 
+	var group models.Group
+	db.DB.Preload(clause.Associations).First(&group, "id = ?", host.GroupID)
+
+
 	logrus.WithFields(logrus.Fields{
 		remoteip: "requesting boot.cfg",
 	}).Info("uefi-https")
@@ -220,12 +224,15 @@ func serveBootCfg(filepath string, host models.Host, image models.Image, conf *c
 	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" ks=https://"+localip+":"+strconv.Itoa(conf.Port)+"/ks.cfg")...))
 
 	// append the mac address of the hardware interface to ensure ks.cfg request comes from the right interface, along with ip, netmask and gateway.
+	/*
 	nm := net.CIDRMask(host.Pool.Netmask, 32)
 	netmask := ipv4MaskString(nm)
+	*/
+
 
 	re = regexp.MustCompile("kernelopt=.*")
 	o = re.Find(bc)
-	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" netdevice="+host.Mac+" ip="+host.IP+" netmask="+netmask+" gateway="+host.Pool.Gateway)...))
+	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" netdevice="+host.Mac+" ip="+host.IP+" netmask="+group.Netmask+" gateway="+group.Gateway)...))
 
 	// if vlan is configured for the group, append the vlan to kernelopts
 	if host.Group.Vlan != "" {

@@ -110,8 +110,10 @@ func Ks(key string) func(c *gin.Context) {
 		logrus.Info("Disabling re-imaging for host to avoid re-install looping")
 
 		//convert netmask from bit to long format.
-		nm := net.CIDRMask(item.Pool.Netmask, 32)
+		/*
+		nm := net.CIDRMask(item.Group.Netmask, 32)
 		netmask := ipv4MaskString(nm)
+		*/
 
 		//decrypt the password
 		decryptedPassword := secrets.Decrypt(item.Group.Password, key)
@@ -127,13 +129,14 @@ func Ks(key string) func(c *gin.Context) {
 			"password":   decryptedPassword,
 			"ip":         item.IP,
 			"mac":        item.Mac,
-			"gateway":    item.Pool.Gateway,
+			//"gateway":    item.Pool.Gateway,
+			"gateway":    item.Group.Gateway,
 			"dns":        item.Group.DNS,
 			"ntp":		  ntp,
 			"hostname":   item.Hostname,
 			"domain":	  item.Domain,
 			"fqdn":		  item.Hostname+"."+item.Domain,
-			"netmask":    netmask,
+			"netmask":    item.Group.Netmask,
 			"via_server": laddrport,
 			"erasedisks": options.EraseDisks,
 			"ssh":		  options.SSH,

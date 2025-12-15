@@ -17,7 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
-	"github.com/davecgh/go-spew/spew"
+	//"github.com/davecgh/go-spew/spew"
 	"github.com/google/gopacket"
 	"github.com/mdlayher/raw"
 )
@@ -238,7 +238,15 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 		if v.Type == layers.DHCPOptHostname {
 			lease.Hostname = string(v.Data)
 		}
-	}
+	}	# pick N large enough to include the commit(s) that added the file
+	git rebase -i HEAD~N
+	# mark the offending commit(s) as "edit" in the editor
+	# when rebase stops:
+	git rm --cached path/to/large-file.iso   # or git rm path/to/large-file.iso
+	echo "path/to/large-file.iso" >> .gitignore
+	git add .gitignore
+	git commit --amend --no-edit
+	git rebase --continue
 	*/
 	resp.YourClientIP = requestedIP
 	/*
@@ -541,7 +549,6 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *models.Host, ip 
 		}
 
 	}
-	spew.Dump(resp.Options)
 
 	// Add the remaining options (that werent requested) in the end
 	for opCode, options := range byOpCode {

@@ -29,7 +29,8 @@ import (
 // @Router /groups [get]
 func ListGroups(c *gin.Context) {
 	var items []models.NoPWGroup
-	if res := db.DB.Preload("Pool").Preload("Option").Find(&items); res.Error != nil {
+	//if res := db.DB.Preload("Pool").Preload("Option").Find(&items); res.Error != nil {
+	if res := db.DB.Find(&items); res.Error != nil {
 		Error(c, http.StatusInternalServerError, res.Error) // 500
 		return
 	}
@@ -57,7 +58,8 @@ func GetGroup(c *gin.Context) {
 
 	// Load the item
 	var item models.NoPWGroup
-	if res := db.DB.Preload("Pool").First(&item, id); res.Error != nil {
+	//if res := db.DB.Preload("Pool").First(&item, id); res.Error != nil {
+	if res := db.DB.First(&item, id); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
 		} else {
@@ -108,7 +110,8 @@ func CreateGroup(key string) func(c *gin.Context) {
 		}
 
 		// Load a new version with relations
-		if res := db.DB.Preload("Pool").First(&item); res.Error != nil {
+		//if res := db.DB.Preload("Pool").First(&item); res.Error != nil {
+		if res := db.DB.First(&item); res.Error != nil {
 			Error(c, http.StatusInternalServerError, res.Error) // 500
 			return
 		}
@@ -120,7 +123,7 @@ func CreateGroup(key string) func(c *gin.Context) {
 			"DNS":      item.DNS,
 			"NTP":      item.NTP,
 			"Image ID": item.ImageID,
-			"Pool ID":  item.PoolID,
+			//"Pool ID":  item.PoolID,
 		}).Debug("group")
 	}
 }
@@ -192,13 +195,15 @@ func UpdateGroup(key string) func(c *gin.Context) {
 		item.GroupForm.BootDisk = form.BootDisk
 
 		// Save it
-		if res := db.DB.Preload("Pool").Save(&item); res.Error != nil {
+		//if res := db.DB.Preload("Pool").Save(&item); res.Error != nil {
+		if res := db.DB.Save(&item); res.Error != nil {
 			Error(c, http.StatusInternalServerError, res.Error) // 500
 			return
 		}
 
 		// Load a new version with relations
-		if res := db.DB.Preload("Pool").First(&item); res.Error != nil {
+		//if res := db.DB.Preload("Pool").First(&item); res.Error != nil {
+		if res := db.DB.First(&item); res.Error != nil {
 			Error(c, http.StatusInternalServerError, res.Error) // 500
 			return
 		}

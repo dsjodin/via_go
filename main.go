@@ -207,7 +207,7 @@ func main() {
 			hosts.PATCH(":id", api.UpdateHost)
 			hosts.DELETE(":id", api.DeleteHost)
 		}
-
+		/*
 		options := v1.Group("/options")
 		{
 			options.GET("", api.ListOptions)
@@ -217,7 +217,7 @@ func main() {
 			options.PATCH(":id", api.UpdateOption)
 			options.DELETE(":id", api.DeleteOption)
 		}
-
+		*/
 		deviceClass := v1.Group("/device_classes")
 		{
 			deviceClass.GET("", api.ListDeviceClasses)
