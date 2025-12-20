@@ -15,6 +15,7 @@ import (
 	"github.com/maxiepax/go-via/models"
 	"gorm.io/gorm/clause"
 	"github.com/sirupsen/logrus"
+	"github.com/davecgh/go-spew/spew"
 )
 
 /*
@@ -71,6 +72,7 @@ func UEFIcrypto64() func(c *gin.Context) {
 func Files(conf *config.Config) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		filepath := c.Param("filepath")
+		spew.Dump(filepath)
 
 		//ip := net.ParseIP(c.ClientIP())
 		ip, _, _ := net.SplitHostPort(c.Request.RemoteAddr)

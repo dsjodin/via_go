@@ -46,7 +46,8 @@ reboot
 
 # Configure NTP
 {{ if .ntp }}
-esxcli system ntp set -e true -s {{ .ntp }}
+{{ .ntp }}
+esxcli system ntp set --enabled true
 {{ end }}
 
 # Configure Domain Search
@@ -119,10 +120,12 @@ func Ks(key string) func(c *gin.Context) {
 		decryptedPassword := secrets.Decrypt(item.Group.Password, key)
 
 		//split NTP
-		ntp := strings.Fields("esxcli system ntp set")
+		ntpSlice := strings.Fields("esxcli system ntp set")
 		for _, k := range strings.Split(item.Group.NTP, ",") {
-			ntp = append(ntp, "--server", string(k))
+			ntpSlice = append(ntpSlice, "--server", string(k))
 		}
+
+		ntp := strings.Join(ntpSlice, " ")
 
 		//cleanup data to allow easier custom templating
 		data := map[string]interface{}{
@@ -193,9 +196,9 @@ func Ks(key string) func(c *gin.Context) {
 		item.Progresstext = "kickstart"
 		db.DB.Save(&item)
 
-		go ProvisioningWorker(item, key)
+		//go ProvisioningWorker(item, key)
 
-		logrus.Info("Started worker")
+		//logrus.Info("Started worker")
 	}
 }
 

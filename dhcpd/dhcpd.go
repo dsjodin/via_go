@@ -97,7 +97,16 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 	}
 	*/
 
-	host, _ := findHostByMAC(req.ClientHWAddr.String())
+	host, err := findHostByMAC(req.ClientHWAddr.String())
+    if err != nil {
+        return nil, err
+    }
+    if host == nil {
+        logrus.WithFields(logrus.Fields{
+            "client-mac": req.ClientHWAddr.String(),
+        }).Warn("dhcp: unknown mac address")
+        return nil, fmt.Errorf("ignored, unknown mac address")
+    }
 
 	resp = &layers.DHCPv4{
 		Operation:    layers.DHCPOpReply,
@@ -160,8 +169,16 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 		NextServerIP: ip.To4(),
 	}
 
-	host, _ := findHostByMAC(req.ClientHWAddr.String())
-
+	host, err := findHostByMAC(req.ClientHWAddr.String())
+    if err != nil {
+        return nil, err
+    }
+    if host == nil {
+        logrus.WithFields(logrus.Fields{
+            "client-mac": req.ClientHWAddr.String(),
+        }).Warn("dhcp: unknown mac address")
+        return nil, fmt.Errorf("ignored, unknown mac address")
+    }
 	/*
 	// Try to find the lease in our host list
 	var lease *models.Host
@@ -796,7 +813,7 @@ func findHostByMAC(mac string) (*models.Host, error) {
     var host models.Host
     res := db.DB.
         Preload("Group").
-        Preload("Pool").
+        //Preload("Pool").
         Where("LOWER(mac) = ?", strings.ToLower(mac)).
         First(&host)
 

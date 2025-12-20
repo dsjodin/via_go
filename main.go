@@ -66,7 +66,8 @@ func main() {
 	}
 
 	//migrate all models
-	err := db.DB.AutoMigrate(&models.Pool{}, &models.Host{}, &models.Option{}, &models.DeviceClass{}, &models.Group{}, &models.Image{}, &models.User{})
+	//err := db.DB.AutoMigrate(&models.Pool{}, &models.Host{}, &models.Option{}, &models.DeviceClass{}, &models.Group{}, &models.Image{}, &models.User{})
+	err := db.DB.AutoMigrate(&models.Host{}, &models.Option{}, &models.DeviceClass{}, &models.Group{}, &models.Image{}, &models.User{})
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -116,8 +117,6 @@ func main() {
 	})
 
 	// uefi-https boot
-	//r.GET("/esx/mboot.efi", uefi.UEFImboot())
-	//r.GET("/esx/crypto64.efi", uefi.UEFIcrypto64())
 	r.GET("/esx/*filepath", uefi.Files(conf))
 
 	// middleware to check if user is logged in
@@ -183,6 +182,7 @@ func main() {
 			login.POST("", api.Login)
 		}*/
 
+		/*
 		pools := v1.Group("/pools")
 		{
 			pools.GET("", api.ListPools)
@@ -193,10 +193,12 @@ func main() {
 			pools.DELETE(":id", api.DeletePool)
 		}
 
+
 		relay := v1.Group("/relay")
 		{
 			relay.GET(":relay", api.GetPoolByRelay)
 		}
+		*/
 
 		hosts := v1.Group("/hosts")
 		{
