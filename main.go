@@ -92,9 +92,13 @@ func main() {
 	// TFTPd
 	go TFTPd(conf)
 
-	//REST API
-	r := gin.New()
-	r.Use(cors.Default())
+	//HTTPS REST API
+	https := gin.New()
+	https.Use(cors.Default())
+
+	//HTTP for boot only
+	efihttp := gin.New()
+	efihttp.Use(cors.Default())
 
 	statikFS, err := fs.New()
 	if err != nil {
@@ -102,10 +106,22 @@ func main() {
 	}
 
 	// ks.cfg is served at top to not place it behind BasicAuth
-	r.GET("ks.cfg", api.Ks(key))
+	https.GET("ks.cfg", api.Ks(key))
 
-	// middleware to log static file requests
-	r.Use(func(c *gin.Context) {
+	// middleware to log static file requests over https
+	https.Use(func(c *gin.Context) {
+		if c.Request.URL.Path == "/esx.iso" {
+			logrus.WithFields(logrus.Fields{
+				"path":   c.Request.URL.Path,
+				"method": c.Request.Method,
+				"ip":     c.ClientIP(),
+			}).Info("static_file_request")
+		}
+		c.Next()
+	})
+
+	// middleware to log static file requests over http
+	efihttp.Use(func(c *gin.Context) {
 		if c.Request.URL.Path == "/esx.iso" {
 			logrus.WithFields(logrus.Fields{
 				"path":   c.Request.URL.Path,
@@ -117,10 +133,13 @@ func main() {
 	})
 
 	// uefi-https boot
-	r.GET("/esx/*filepath", uefi.Files(conf))
+	https.GET("/esx/*filepath", uefi.Files(conf))
+
+	// uefi-http boot
+	efihttp.GET("/esx/*filepath", uefi.Files(conf))
 
 	// middleware to check if user is logged in
-	r.Use(func(c *gin.Context) {
+	https.Use(func(c *gin.Context) {
 
 		// Check for basic auth
 		username, password, hasAuth := c.Request.BasicAuth()
@@ -163,42 +182,19 @@ func main() {
 		c.Next()
 	})
 
-	r.NoRoute(func(c *gin.Context) {
+	https.NoRoute(func(c *gin.Context) {
 		c.Request.URL.Path = "/web/" // force us to always return index.html and not the requested page to be compatible with HTML5 routing
 		http.FileServer(statikFS).ServeHTTP(c.Writer, c.Request)
 	})
 
-	ui := r.Group("/")
+	ui := https.Group("/")
 	{
 		ui.GET("/web/*all", gin.WrapH(http.FileServer(statikFS)))
 		ui.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
-	v1 := r.Group("/v1")
+	v1 := https.Group("/v1")
 	{
-
-		/*login := v1.Group("/login")
-		{
-			login.POST("", api.Login)
-		}*/
-
-		/*
-		pools := v1.Group("/pools")
-		{
-			pools.GET("", api.ListPools)
-			pools.GET(":id", api.GetPool)
-			pools.POST("/search", api.SearchPool)
-			pools.POST("", api.CreatePool)
-			pools.PATCH(":id", api.UpdatePool)
-			pools.DELETE(":id", api.DeletePool)
-		}
-
-
-		relay := v1.Group("/relay")
-		{
-			relay.GET(":relay", api.GetPoolByRelay)
-		}
-		*/
 
 		hosts := v1.Group("/hosts")
 		{
@@ -209,17 +205,7 @@ func main() {
 			hosts.PATCH(":id", api.UpdateHost)
 			hosts.DELETE(":id", api.DeleteHost)
 		}
-		/*
-		options := v1.Group("/options")
-		{
-			options.GET("", api.ListOptions)
-			options.GET(":id", api.GetOption)
-			options.POST("/search", api.SearchOption)
-			options.POST("", api.CreateOption)
-			options.PATCH(":id", api.UpdateOption)
-			options.DELETE(":id", api.DeleteOption)
-		}
-		*/
+
 		deviceClass := v1.Group("/device_classes")
 		{
 			deviceClass.GET("", api.ListDeviceClasses)
@@ -285,15 +271,21 @@ func main() {
 			crt.Name(): "server.crt found",
 		}).Info("cert")
 	}
+
+	//enable HTTP for boot only on port 80
+	logrus.WithFields(logrus.Fields{
+		"port": ":80",
+	}).Info("Webserver http")
+	go efihttp.Run(":80")
+
 	//enable HTTPS
 	listen := ":" + strconv.Itoa(conf.Port)
 	logrus.WithFields(logrus.Fields{
 		"port": listen,
-	}).Info("Webserver")
-	err = r.RunTLS(listen, "./cert/server.crt", "./cert/server.key")
+	}).Info("Webserver https")
+	err = https.RunTLS(listen, "./cert/server.crt", "./cert/server.key")
 
 	logrus.WithFields(logrus.Fields{
 		"error": err,
 	}).Error("Webserver")
-
 }

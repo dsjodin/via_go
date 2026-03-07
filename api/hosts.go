@@ -28,7 +28,7 @@ import (
 func ListHosts(c *gin.Context) {
 	var items []models.Host
 	//if res := db.DB.Preload("Pool").Find(&items); res.Error != nil {
-	if res := db.DB.Find(&items); res.Error != nil {
+	if res := db.DB.Preload("Group").Find(&items); res.Error != nil {
 
 		Error(c, http.StatusInternalServerError, res.Error) // 500
 		return
@@ -57,7 +57,7 @@ func GetHost(c *gin.Context) {
 	// Load the item
 	var item models.Host
 	//if res := db.DB.Preload("Pool").First(&item, id); res.Error != nil {
-	if res := db.DB.First(&item, id); res.Error != nil {
+	if res := db.DB.Preload("Group").First(&item, id); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
 		} else {
