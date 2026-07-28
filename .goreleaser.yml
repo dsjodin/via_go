@@ -1,37 +1,52 @@
+version: 2
+
+# The frontend is built by `go generate ./...` in CI before goreleaser runs;
+# it needs a Node toolchain, so it is not a hook here.
 before:
   hooks:
-    - go get -v -d
-    - go get -u github.com/swaggo/swag/cmd/swag
-    - go generate ./...
+    - go mod download
+
 builds:
-- env:
-    - CGO_ENABLED=1
-  goos:
-    - linux
-  goarch:
-    - amd64
+  - id: go-via
+    env:
+      # go-sqlite3 is cgo.
+      - CGO_ENABLED=1
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.FullCommit}}
+      - -X main.date={{.Date}}
+
 checksum:
   name_template: 'checksums.txt'
+
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
+
 changelog:
   sort: asc
   filters:
     exclude:
-    - '^docs:'
-    - '^test:'
+      - '^docs:'
+      - '^test:'
+
 archives:
-  -
-    files:
-    - config.example.json
+  - files:
+      - config.example.json
+
 dockers:
- - ids:
-    - go-via
-   image_templates:
-    - "docker.io/maxiepax/go-via:latest"
-   build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.name={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
+  - ids:
+      - go-via
+    image_templates:
+      - "docker.io/maxiepax/go-via:{{ .Version }}"
+      - "docker.io/maxiepax/go-via:latest"
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
