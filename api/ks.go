@@ -1,13 +1,13 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"text/template"
 	"strings"
-	"encoding/base64"
+	"text/template"
 
 	"github.com/gin-gonic/gin"
 	"github.com/maxiepax/go-via/db"
@@ -15,8 +15,6 @@ import (
 	"github.com/maxiepax/go-via/secrets"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/clause"
-	//"github.com/davecgh/go-spew/spew"
-
 )
 
 var defaultks = `
@@ -112,8 +110,8 @@ func Ks(key string) func(c *gin.Context) {
 
 		//convert netmask from bit to long format.
 		/*
-		nm := net.CIDRMask(item.Group.Netmask, 32)
-		netmask := ipv4MaskString(nm)
+			nm := net.CIDRMask(item.Group.Netmask, 32)
+			netmask := ipv4MaskString(nm)
 		*/
 
 		//decrypt the password
@@ -129,21 +127,21 @@ func Ks(key string) func(c *gin.Context) {
 
 		//cleanup data to allow easier custom templating
 		data := map[string]interface{}{
-			"password":   decryptedPassword,
-			"ip":         item.IP,
-			"mac":        item.Mac,
+			"password": decryptedPassword,
+			"ip":       item.IP,
+			"mac":      item.Mac,
 			//"gateway":    item.Pool.Gateway,
 			"gateway":    item.Group.Gateway,
 			"dns":        item.Group.DNS,
-			"ntp":		  ntp,
+			"ntp":        ntp,
 			"hostname":   item.Hostname,
-			"domain":	  item.Domain,
-			"fqdn":		  item.Hostname+"."+item.Domain,
+			"domain":     item.Domain,
+			"fqdn":       item.Hostname + "." + item.Domain,
 			"netmask":    item.Group.Netmask,
 			"via_server": laddrport,
 			"erasedisks": options.EraseDisks,
-			"ssh":		  options.SSH,
-			"syslog":	  item.Group.Syslog,
+			"ssh":        options.SSH,
+			"syslog":     item.Group.Syslog,
 			"bootdisk":   item.Group.BootDisk,
 			"vlan":       item.Group.Vlan,
 			"createvmfs": options.CreateVMFS,
@@ -178,7 +176,6 @@ func Ks(key string) func(c *gin.Context) {
 		}
 
 		//debug ks.cfg output
-		//spew.Dump(t.Execute(os.Stdout, data))
 
 		logrus.Info("Served ks.cfg file")
 		logrus.WithFields(logrus.Fields{
