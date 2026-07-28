@@ -102,7 +102,12 @@ func CreateGroup(key string) func(c *gin.Context) {
 			Error(c, http.StatusBadRequest, err) // 400
 			return
 		}
-		item.Password = secrets.Encrypt(item.Password, key)
+		encrypted, err := secrets.Encrypt(item.Password, key)
+		if err != nil {
+			Error(c, http.StatusInternalServerError, err) // 500
+			return
+		}
+		item.Password = encrypted
 
 		if res := db.DB.Create(&item); res.Error != nil {
 			Error(c, http.StatusInternalServerError, res.Error) // 500
@@ -184,7 +189,12 @@ func UpdateGroup(key string) func(c *gin.Context) {
 				return
 			}
 
-			item.Password = secrets.Encrypt(item.Password, key)
+			encrypted, err := secrets.Encrypt(item.Password, key)
+			if err != nil {
+				Error(c, http.StatusInternalServerError, err) // 500
+				return
+			}
+			item.Password = encrypted
 		}
 
 		//mergo wont overwrite values with empty space. To enable removal of ntp, dns, syslog, vlan, always overwrite.

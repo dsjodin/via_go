@@ -79,7 +79,10 @@ func main() {
 	}
 
 	// load secrets key
-	key := secrets.Init()
+	key, err := secrets.Init()
+	if err != nil {
+		logrus.Fatalf("secrets: %v", err)
+	}
 
 	// DHCPd
 	if !conf.DisableDhcp {

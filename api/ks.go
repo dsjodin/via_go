@@ -115,7 +115,16 @@ func Ks(key string) func(c *gin.Context) {
 		*/
 
 		//decrypt the password
-		decryptedPassword := secrets.Decrypt(item.Group.Password, key)
+		decryptedPassword, err := secrets.Decrypt(item.Group.Password, key)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"id":  item.ID,
+				"ip":  item.IP,
+				"err": err,
+			}).Error("ks: could not decrypt the group password")
+			Error(c, http.StatusInternalServerError, err) // 500
+			return
+		}
 
 		//split NTP
 		ntpSlice := strings.Fields("esxcli system ntp set")
