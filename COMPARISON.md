@@ -185,24 +185,53 @@ Two things to do at fork time regardless:
 
 Ordered so that each phase leaves the tree in a better state than it found it.
 
-### Phase 0 — make it trustworthy (do this first)
+### Phase 0 — make it trustworthy — **done**
 
-- Merge `dev` → your `main`, tag it as the fork baseline so the WIP state is
-  recorded before you touch it.
-- `go get -u` gin → 1.10+, gin-contrib/cors → 1.7+, gorm → 1.25+, govmomi →
-  current; pin the toolchain to Go 1.24+. Target zero `govulncheck` findings.
-- Replace `statik` with `go:embed`. Deletes a dependency and the codegen step
-  from `//go:generate`.
-- Add a real CI workflow: `go build`, `go vet`, `go test`, `govulncheck`,
-  `golangci-lint`, plus the UI build, on every push and PR.
-- Delete the commented-out corpses (`api/login.go`, the pool blocks in `dhcpd`,
-  the `UEFImboot`/`UEFIcrypto64` duplicates in `uefi/uefi.go`) and the
-  `spew.Dump` calls. Git remembers them; the source file shouldn't.
-- Replace every `panic()` in `secrets/` and `crypto/` with returned errors.
+All of the following has landed on this fork; `fork-baseline` tags the
+upstream `dev` commit it started from.
 
-### Phase 1 — tests, because there are none
+- ✅ Forked from `dev` with full upstream history preserved.
+- ✅ Dependencies upgraded (gin 1.7.3 → 1.12.0, cors 1.3.1 → 1.7.7, gorm
+  1.20 → 1.31, govmomi 0.24 → 0.55) and the toolchain pinned to Go 1.25.
+  **`govulncheck`: 28 reachable vulnerabilities → 0.**
+- ✅ `statik` replaced with `go:embed`, dropping a 22MB generated blob that
+  held an Angular bundle calling API endpoints that no longer exist.
+- ✅ CI on every push and PR: gofmt, build, vet, race tests, golangci-lint,
+  govulncheck, and the frontend lint and build.
+- ✅ Dead code removed — `api/login.go`, the commented pool blocks (`dhcpd`
+  drops 941 → 689 lines), the duplicate UEFI handlers, the `spew.Dump` calls.
+- ✅ `panic()` replaced with returned errors in `secrets`, plus a missing
+  length check that crashed the daemon on an empty stored password.
+- ✅ **51 golangci-lint findings → 0**, including several real bugs (see below).
+- ✅ Release pipeline repaired — it could not have worked: Go 1.15 against a
+  Go 1.25 module, goreleaser flags removed in v2, and a frontend build step
+  with no Node toolchain.
 
-The highest-leverage work in the whole project. In rough priority:
+Bugs found and fixed along the way, none of which were style issues:
+
+| Where | Bug |
+|---|---|
+| `dhcpd` | Empty `if` body around the group lookup. On failure no option 67 was sent and the host silently never booted. |
+| `dhcpd` | Boot-method chain had no fallback — an unset method failed the same silent way. |
+| `dhcpd` | Errors from `c.WriteTo` (which sends the DHCP reply) and both `AddOptions` calls discarded. |
+| `api/image.go` | Failed `os.Open` only warned, then dereferenced the nil file. |
+| `api/image.go` | `log.Fatal` in three places inside an HTTP handler — an upload error killed the daemon. |
+| `crypto` | `pem.Encode` and `Close` errors dropped when writing the CA cert, CA key and server keypair; `rsa.GenerateKey`'s error dropped into `_`. |
+| `secrets` | `Decrypt` sliced `enc[:nonceSize]` unguarded — an empty password field panicked. |
+| four files | Unchecked `json.Unmarshal` of the group options blob silently treated every option as false. |
+| `main.go` | UEFI HTTP boot listener started with its error dropped; it could die silently. |
+| `ui/` | `lucide-react` imported but absent from `package.json` — `next build` failed outright. |
+| `.goreleaser.yml` | No ldflags, so every released binary reported version `dev`, commit `none`. |
+
+Known gap this surfaced: **DHCP DECLINE is not handled.** The old
+implementation depended on pools and cannot be restored as-is; it needs
+rewriting against the host reservation model.
+
+### Phase 1 — tests — next
+
+Phase 0 added the first tests this project has ever had (`secrets`, `webui`),
+but coverage is still near zero. This is the highest-leverage work remaining.
+In rough priority:
 
 - `models.Option.ToDHCPOption()` — pure function, ~25 branches, trivially
   table-testable, and encoding bugs here produce silent boot failures.
