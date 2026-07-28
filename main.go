@@ -266,7 +266,9 @@ func main() {
 		logrus.WithFields(logrus.Fields{
 			"certificate": "server.crt does not exist, initiating new CA and creating self-signed ceritificate server.crt",
 		}).Info("cert")
-		os.MkdirAll("cert", os.ModePerm)
+		if err := os.MkdirAll("cert", 0o755); err != nil {
+			logrus.Fatalf("cert: could not create directory: %v", err)
+		}
 		ca.CreateCA()
 		ca.CreateCert("./cert", "server", "server")
 	} else {
@@ -279,7 +281,13 @@ func main() {
 	logrus.WithFields(logrus.Fields{
 		"port": ":80",
 	}).Info("Webserver http")
-	go efihttp.Run(":80")
+	go func() {
+		// The UEFI HTTP boot listener dying leaves hosts unable to boot, so
+		// it must not fail silently.
+		if err := efihttp.Run(":80"); err != nil {
+			logrus.WithField("err", err).Error("Webserver http")
+		}
+	}()
 
 	//enable HTTPS
 	listen := ":" + strconv.Itoa(conf.Port)

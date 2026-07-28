@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -14,6 +15,31 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
+// writePEM writes a single PEM block to path with the given permissions.
+//
+// Errors from pem.Encode and Close are reported rather than discarded: a
+// partial write leaves a truncated certificate or key on disk, and TLS then
+// fails later with an error that points nowhere near the real cause.
+func writePEM(path string, perm os.FileMode, block *pem.Block) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+
+	if err := pem.Encode(f, block); err != nil {
+		_ = f.Close()
+		_ = os.Remove(path) // best effort: do not leave a truncated file behind
+		return fmt.Errorf("encode %s: %w", path, err)
+	}
+
+	if err := f.Close(); err != nil {
+		_ = os.Remove(path)
+		return fmt.Errorf("close %s: %w", path, err)
+	}
+
+	return nil
+}
 
 func CreateCA() {
 	ca := &x509.Certificate{
@@ -32,7 +58,10 @@ func CreateCA() {
 		BasicConstraintsValid: true,
 	}
 
-	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		logrus.Fatalf("cert: generate CA key: %v", err)
+	}
 	pub := &priv.PublicKey
 	ca_b, err := x509.CreateCertificate(rand.Reader, ca, ca, pub, priv)
 	if err != nil {
@@ -41,23 +70,17 @@ func CreateCA() {
 	}
 
 	// Public key
-	certOut, err := os.Create("cert/ca.crt")
-	if err != nil {
-		logrus.Fatal(err)
+	if err := writePEM("cert/ca.crt", 0644, &pem.Block{Type: "CERTIFICATE", Bytes: ca_b}); err != nil {
+		logrus.Fatalf("cert: %v", err)
 	}
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: ca_b})
-	certOut.Close()
 	logrus.WithFields(logrus.Fields{
 		"cert": "ca.pem created",
 	}).Info("cert")
 
 	// Private key
-	keyOut, err := os.OpenFile("cert/ca.key", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		logrus.Fatal(err)
+	if err := writePEM("cert/ca.key", 0600, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
+		logrus.Fatalf("cert: %v", err)
 	}
-	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	keyOut.Close()
 	logrus.WithFields(logrus.Fields{
 		"cert": "ca.key created",
 	}).Info("cert")
@@ -95,7 +118,10 @@ func CreateCert(path string, name string, cn string) {
 	cert.DNSNames = []string{cn}
 	cert.EmailAddresses = []string{"ssl-certificates@vmware.com"}
 
-	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		logrus.Fatalf("cert: generate key for %s: %v", name, err)
+	}
 	pub := &priv.PublicKey
 
 	// Sign the certificate
@@ -105,25 +131,20 @@ func CreateCert(path string, name string, cn string) {
 	}
 
 	// Public key
-	certOut, err := os.Create(path + "/" + name + ".crt")
-	if err != nil {
-		logrus.Fatal(err)
+	crtPath := path + "/" + name + ".crt"
+	if err := writePEM(crtPath, 0644, &pem.Block{Type: "CERTIFICATE", Bytes: cert_b}); err != nil {
+		logrus.Fatalf("cert: %v", err)
 	}
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: cert_b})
-	certOut.Close()
 	logrus.WithFields(logrus.Fields{
-		"cert": path + "/" + name + ".crt created",
+		"cert": crtPath + " created",
 	}).Info("cert")
 
 	// Private key
-	keyOut, err := os.OpenFile(path+"/"+name+".key", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		logrus.Fatal(err)
+	keyPath := path + "/" + name + ".key"
+	if err := writePEM(keyPath, 0600, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
+		logrus.Fatalf("cert: %v", err)
 	}
-	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	keyOut.Close()
 	logrus.WithFields(logrus.Fields{
-		"cert": path + "/" + name + ".key created",
+		"cert": keyPath + " created",
 	}).Info("cert")
-
 }

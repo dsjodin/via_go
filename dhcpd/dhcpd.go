@@ -69,7 +69,9 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 
 	resp.Options = append(resp.Options, layers.NewDHCPOption(layers.DHCPOptMessageType, []byte{byte(layers.DHCPMsgTypeOffer)}))
 
-	AddOptions(req, resp, host, ip)
+	if err := AddOptions(req, resp, host, ip); err != nil {
+		return nil, err
+	}
 
 	return resp, nil
 }
@@ -77,7 +79,7 @@ func processDiscover(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (resp *lay
 func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DHCPv4, error) {
 
 	// Extract the requested IP
-	var requestedIP net.IP = req.ClientIP
+	requestedIP := req.ClientIP
 	for _, v := range req.Options {
 		if v.Type == layers.DHCPOptRequestIP {
 			requestedIP = net.IP(v.Data)
@@ -108,33 +110,11 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 	resp.YourClientIP = requestedIP
 
 	resp.Options = append(resp.Options, layers.NewDHCPOption(layers.DHCPOptMessageType, []byte{byte(layers.DHCPMsgTypeAck)}))
-	AddOptions(req, resp, host, ip)
+	if err := AddOptions(req, resp, host, ip); err != nil {
+		return nil, err
+	}
 
 	return resp, nil
-}
-
-func listMissingOptions(req *layers.DHCPv4, resp *layers.DHCPv4) string {
-	requested := map[byte]struct{}{}
-	for _, v := range req.Options {
-		if v.Type == layers.DHCPOptParamsRequest {
-			for _, v := range v.Data {
-				requested[v] = struct{}{}
-			}
-		}
-	}
-
-	for _, v := range resp.Options {
-		if _, ok := requested[byte(v.Type)]; ok {
-			delete(requested, byte(v.Type))
-		}
-	}
-
-	var list []string
-	for k := range requested {
-		list = append(list, strconv.Itoa(int(k)))
-	}
-
-	return strings.Join(list, ",")
 }
 
 // AddOptions will try to add all requested options and the manually specified ones to the response
@@ -196,12 +176,18 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *models.Host, ip 
 
 	//get the hosts group object to determine the boot method used.
 	var h models.Host
-	if err := db.DB.Preload("Group").First(&h, lease.ID).Error; err == nil {
+	if err := db.DB.Preload("Group").First(&h, lease.ID).Error; err != nil {
+		// Without the group there is no boot method, so no option 67 is sent
+		// and the host silently fails to boot. Say so rather than swallowing it.
+		logrus.WithFields(logrus.Fields{
+			"host": lease.ID,
+			"err":  err,
+		}).Error("dhcp: could not load the host's group, the client will not be told what to boot")
 	}
 	bootmethod := h.Group.BootMethod
 
 	// Add the requested options to the response
-	var leaseTime float64 = float64(3600)
+	leaseTime := float64(3600)
 	for opCode := range requestedOptions {
 		if options, ok := byOpCode[opCode]; ok {
 			for _, v := range options {
@@ -225,23 +211,28 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *models.Host, ip 
 		code := layers.DHCPOpt(opCode)
 		switch code {
 		case 67:
-			if bootmethod == "pxe" {
-				resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte("mboot.efi")))
+			var bootfile string
+			switch bootmethod {
+			case "pxe":
+				bootfile = "mboot.efi"
+			case "https-dhcp":
+				bootfile = "https://" + ip.String() + "/esx/mboot.efi"
+			case "http-dhcp":
+				bootfile = "http://" + ip.String() + "/esx/mboot.efi"
+			default:
+				// No option 67 means the client is never told what to boot, so
+				// an unset or unrecognised boot method must be reported rather
+				// than leaving the host to time out.
 				logrus.WithFields(logrus.Fields{
 					"boot method": bootmethod,
-					"filepath":    "mboot.efi",
-				}).Info("dhcp")
-			} else if bootmethod == "https-dhcp" {
-				resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte("https://"+ip.String()+"/esx/mboot.efi")))
+					"host":        lease.ID,
+				}).Error("dhcp: unknown boot method, the client will not be told what to boot")
+			}
+			if bootfile != "" {
+				resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte(bootfile)))
 				logrus.WithFields(logrus.Fields{
 					"boot method": bootmethod,
-					"filepath":    "https://" + ip.String() + "/esx/mboot.efi",
-				}).Info("dhcp")
-			} else if bootmethod == "http-dhcp" {
-				resp.Options = append(resp.Options, layers.NewDHCPOption(code, []byte("http://"+ip.String()+"/esx/mboot.efi")))
-				logrus.WithFields(logrus.Fields{
-					"boot method": bootmethod,
-					"filepath":    "http://" + ip.String() + "/esx/mboot.efi",
+					"filepath":    bootfile,
 				}).Info("dhcp")
 			}
 		case layers.DHCPOptSubnetMask:
@@ -368,7 +359,7 @@ func Init(intf string) {
 	if err != nil {
 		logrus.Fatalf("dhcp: failed to listen: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	logrus.WithFields(logrus.Fields{
 		"mac": mac,
@@ -458,7 +449,15 @@ func Init(intf string) {
 				continue
 			}
 
-			c.WriteTo(buf.Bytes(), src)
+			if _, err := c.WriteTo(buf.Bytes(), src); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"response":   findMsgType(resp).String(),
+					"client-mac": req.ClientHWAddr.String(),
+					"ip":         resp.YourClientIP,
+					"err":        err,
+				}).Warnf("dhcp: failed to send response to %s %s", source, t)
+				continue
+			}
 
 			logrus.WithFields(logrus.Fields{
 				"response":   findMsgType(resp).String(),
@@ -511,7 +510,7 @@ func buildHeaders(mac net.HardwareAddr, ip net.IP, srcEth *layers.Ethernet, srcI
 		udp.DstPort = 68
 	}
 
-	udp.SetNetworkLayerForChecksum(ip4)
+	_ = udp.SetNetworkLayerForChecksum(ip4)
 
 	return []gopacket.SerializableLayer{eth, ip4, udp}
 }
@@ -553,7 +552,7 @@ func findHostByMAC(mac string) (*models.Host, error) {
 		}
 		return nil, res.Error
 	}
-	if host.Reimage == true {
+	if host.Reimage {
 		return &host, nil
 	} else {
 		return nil, fmt.Errorf("%s is not flagged for re-imaging", host.Hostname)
@@ -574,9 +573,7 @@ func NetworkAddress(gateway string, netmask string) (string, error) {
 	m := strings.TrimSpace(netmask)
 
 	// accept "/24" or "24"
-	if strings.HasPrefix(m, "/") {
-		m = m[1:]
-	}
+	m = strings.TrimPrefix(m, "/")
 
 	// If netmask is numeric (CIDR bits)
 	if bits, err := strconv.Atoi(m); err == nil {
@@ -609,9 +606,7 @@ func BroadcastAddress(gateway string, netmask string) (string, error) {
 	}
 
 	m := strings.TrimSpace(netmask)
-	if strings.HasPrefix(m, "/") {
-		m = m[1:]
-	}
+	m = strings.TrimPrefix(m, "/")
 
 	var mask net.IPMask
 	if bits, err := strconv.Atoi(m); err == nil {
@@ -643,9 +638,7 @@ func BroadcastAddress(gateway string, netmask string) (string, error) {
 // or CIDR formats ("24" or "/24") to the CIDR prefix length (e.g. 24).
 func NetmaskToCIDR(maskStr string) (int, error) {
 	m := strings.TrimSpace(maskStr)
-	if strings.HasPrefix(m, "/") {
-		m = strings.TrimPrefix(m, "/")
-	}
+	m = strings.TrimPrefix(m, "/")
 
 	// If already numeric (CIDR)
 	if bits, err := strconv.Atoi(m); err == nil {

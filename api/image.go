@@ -104,7 +104,10 @@ func CreateImage(c *gin.Context) {
 		item.Hash = c.PostForm("hash")
 		item.Description = c.PostForm("description")
 
-		os.MkdirAll(filepath.Dir(item.Path), os.ModePerm)
+		if err := os.MkdirAll(filepath.Dir(item.Path), 0o755); err != nil {
+			Error(c, http.StatusInternalServerError, err) // 500
+			return
+		}
 
 		_, err = SaveUploadedFile(file, item.Path)
 		if err != nil {
@@ -123,19 +126,26 @@ func CreateImage(c *gin.Context) {
 
 			f, err := os.Open(item.Path)
 			if err != nil {
-				logrus.Warning(err)
+				Error(c, http.StatusInternalServerError, err) // 500
+				return
 			}
-			defer f.Close()
 
 			h := sha256.New()
-			if _, err := io.Copy(h, f); err != nil {
-				log.Fatal(err)
+			_, copyErr := io.Copy(h, f)
+			closeErr := f.Close()
+			if copyErr != nil {
+				Error(c, http.StatusInternalServerError, copyErr) // 500
+				return
+			}
+			if closeErr != nil {
+				Error(c, http.StatusInternalServerError, closeErr) // 500
+				return
 			}
 
 			if hex.EncodeToString(h.Sum(nil)) != item.Hash {
 				err := fmt.Errorf("hash was invalid")
 				Error(c, http.StatusBadRequest, err) // 400
-				os.Remove(item.Path)
+				_ = os.Remove(item.Path)
 				return
 			}
 
@@ -143,9 +153,10 @@ func CreateImage(c *gin.Context) {
 
 		f, err := os.Open(item.Path)
 		if err != nil {
-			log.Fatalf("failed to open file: %s", err)
+			Error(c, http.StatusInternalServerError, err) // 500
+			return
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		//strip the filextension, eg. vmware.iso = vmware
 		fn := strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename))
@@ -153,7 +164,8 @@ func CreateImage(c *gin.Context) {
 		fp := path.Join(".", "images", fn)
 
 		if err = util.ExtractImageToDirectory(f, fp); err != nil {
-			log.Fatalf("failed to extract image: %s", err)
+			Error(c, http.StatusInternalServerError, fmt.Errorf("failed to extract image: %w", err)) // 500
+			return
 		}
 
 		//remove the file
@@ -208,13 +220,13 @@ func SaveUploadedFile(file *multipart.FileHeader, dst string) (int64, error) {
 	if err != nil {
 		return -1, err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return -1, err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	n, err := io.Copy(out, src)
 	return n, err
@@ -336,7 +348,7 @@ func WriteToFile(filename string, data string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = io.WriteString(file, data)
 	if err != nil {
@@ -363,7 +375,7 @@ func GetInterfaceIpv4Addr(interfaceName string) (addr string, err error) {
 		}
 	}
 	if ipv4Addr == nil {
-		return "", errors.New(fmt.Sprintf("interface %s don't have an ipv4 address\n", interfaceName))
+		return "", fmt.Errorf("interface %s does not have an ipv4 address", interfaceName)
 	}
 	return ipv4Addr.String(), nil
 }

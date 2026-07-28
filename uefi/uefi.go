@@ -94,7 +94,6 @@ func Files(conf *config.Config) func(c *gin.Context) {
 			}
 		}
 		c.File(filepath)
-		return
 	}
 }
 
@@ -124,14 +123,6 @@ func UEFIcrypto64(imagePath string) (string, error) {
 
 	//couldn't find the file
 	return "", fmt.Errorf("could not locate a crypto64.efi")
-}
-
-func ipv4MaskString(m []byte) string {
-	if len(m) != 4 {
-		panic("ipv4Mask: len must be 4 bytes")
-	}
-
-	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
 }
 
 func serveBootCfg(filepath string, host models.Host, image models.Image, conf *config.Config, localip string, remoteip string) ([]byte, error) {
@@ -190,7 +181,9 @@ func serveBootCfg(filepath string, host models.Host, image models.Image, conf *c
 
 	// load options from the group
 	options := models.GroupOptions{}
-	json.Unmarshal(host.Group.Options, &options)
+	if err := json.Unmarshal(host.Group.Options, &options); err != nil {
+		logrus.WithField("err", err).Warn("could not parse group options, treating them as unset")
+	}
 
 	// if autopart is configured for the group, append autopart to kernelopt - https://kb.vmware.com/s/article/77009
 	/*

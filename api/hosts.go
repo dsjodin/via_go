@@ -317,9 +317,7 @@ func NetworkAddress(gateway string, netmask string) (string, error) {
 	m := strings.TrimSpace(netmask)
 
 	// accept "/24" or "24"
-	if strings.HasPrefix(m, "/") {
-		m = m[1:]
-	}
+	m = strings.TrimPrefix(m, "/")
 
 	// If netmask is numeric (CIDR bits)
 	if bits, err := strconv.Atoi(m); err == nil {
@@ -349,9 +347,7 @@ func NetworkAddress(gateway string, netmask string) (string, error) {
 // or CIDR formats ("24" or "/24") to the CIDR prefix length (e.g. 24).
 func NetmaskToCIDR(maskStr string) (int, error) {
 	m := strings.TrimSpace(maskStr)
-	if strings.HasPrefix(m, "/") {
-		m = strings.TrimPrefix(m, "/")
-	}
+	m = strings.TrimPrefix(m, "/")
 
 	// If already numeric (CIDR)
 	if bits, err := strconv.Atoi(m); err == nil {

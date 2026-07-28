@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -92,7 +91,9 @@ func Ks(key string) func(c *gin.Context) {
 		}
 
 		options := models.GroupOptions{}
-		json.Unmarshal(item.Group.Options, &options)
+		if err := json.Unmarshal(item.Group.Options, &options); err != nil {
+			logrus.WithField("err", err).Warn("could not parse group options, treating them as unset")
+		}
 
 		if reimage := db.DB.Model(&item).Where("ip = ?", host).Update("reimage", false); reimage.Error != nil {
 			Error(c, http.StatusInternalServerError, reimage.Error) // 500
@@ -206,12 +207,4 @@ func Ks(key string) func(c *gin.Context) {
 
 		//logrus.Info("Started worker")
 	}
-}
-
-func ipv4MaskString(m []byte) string {
-	if len(m) != 4 {
-		panic("ipv4Mask: len must be 4 bytes")
-	}
-
-	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
 }

@@ -25,13 +25,17 @@ func Connect(debug bool) {
 	//check if database is present
 	if _, err := os.Stat("database/sqlite-database.db"); os.IsNotExist(err) {
 		//Database does not exist, so create it.
-		os.MkdirAll("database", os.ModePerm)
+		if err := os.MkdirAll("database", 0o755); err != nil {
+			logrus.Fatalf("could not create database directory: %v", err)
+		}
 		logrus.Info("No database found, creating database/sqlite-database.db")
 		file, err := os.Create("database/sqlite-database.db")
 		if err != nil {
 			logrus.Fatal(err.Error())
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			logrus.Fatalf("could not create database file: %v", err)
+		}
 		logrus.Info("database/sqlite-database.db created")
 	} else {
 		//Database exists, moving on.

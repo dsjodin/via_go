@@ -61,7 +61,9 @@ func ProvisioningWorker(item models.Host, key string) {
 
 	//create empty model and load it with the json content from database
 	options := models.GroupOptions{}
-	json.Unmarshal(item.Group.Options, &options)
+	if err := json.Unmarshal(item.Group.Options, &options); err != nil {
+		logrus.WithField("err", err).Warn("could not parse group options, treating them as unset")
+	}
 	logrus.WithFields(logrus.Fields{
 		"Started worker for ": item.Hostname,
 	}).Debug("host")

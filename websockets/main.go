@@ -103,7 +103,7 @@ func (ls *LogServer) Handle(c *gin.Context) {
 		}).Warn("could not accept websocket")
 		return
 	}
-	defer conn.Close(websocket.StatusInternalError, "")
+	defer func() { _ = conn.Close(websocket.StatusInternalError, "") }()
 
 	err = ls.subscribe(c.Request.Context(), conn)
 	if errors.Is(err, context.Canceled) {
@@ -127,7 +127,7 @@ func (ls *LogServer) subscribe(ctx context.Context, c *websocket.Conn) error {
 	s := &subscriber{
 		msgs: make(chan []byte, ls.subscriberMessageBuffer),
 		closeSlow: func() {
-			c.Close(websocket.StatusPolicyViolation, "connection too slow to keep up with messages")
+			_ = c.Close(websocket.StatusPolicyViolation, "connection too slow to keep up with messages")
 		},
 	}
 
