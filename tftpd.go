@@ -54,11 +54,11 @@ func readHandler(conf *config.Config) func(string, io.ReaderFrom) error {
 		db.DB.First(&image, "id = ?", host.Group.ImageID)
 
 		logrus.WithFields(logrus.Fields{
-			"raddr":     raddr,
-			"laddr":     laddr,
-			"filename":  filename,
-			"imageid":   image.ID,
-			"hostid": host.ID,
+			"raddr":    raddr,
+			"laddr":    laddr,
+			"filename": filename,
+			"imageid":  image.ID,
+			"hostid":   host.ID,
 		}).Debug("tftpd")
 
 		//if the filename is mboot.efi, we hijack it and serve the mboot.efi file that is part of that specific image, this guarantees that you always get an mboot file that works for the build
@@ -226,8 +226,8 @@ func serveBootCfg(filename string, host models.Host, image models.Image, rf io.R
 
 	// append the mac address of the hardware interface to ensure ks.cfg request comes from the right interface, along with ip, netmask and gateway.
 	/*
-	nm := net.CIDRMask(host.Pool.Netmask, 32)
-	netmask := ipv4MaskString(nm)
+		nm := net.CIDRMask(host.Pool.Netmask, 32)
+		netmask := ipv4MaskString(nm)
 	*/
 
 	re = regexp.MustCompile("kernelopt=.*")
@@ -257,7 +257,6 @@ func serveBootCfg(filename string, host models.Host, image models.Image, rf io.R
 	re = regexp.MustCompile("kernelopt=.*")
 	o = re.Find(bc)
 	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" allowLegacyCPU=true")...))
-
 
 	// replace prefix with prefix=foldername
 	split := strings.Split(image.Path, "/")

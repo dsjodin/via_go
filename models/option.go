@@ -12,7 +12,7 @@ import (
 
 type OptionForm struct {
 	//PoolID        int    `json:"pool_id" gorm:"type:BIGINT"`
-	HostID     	  int    `json:"host_id" gorm:"type:BIGINT"`
+	HostID        int    `json:"host_id" gorm:"type:BIGINT"`
 	DeviceClassID int    `json:"device_class_id" gorm:"type:BIGINT"`
 	OpCode        byte   `json:"opcode" gorm:"type:SMALLINT;unsigned;not null" binding:"required" `
 	Data          string `json:"data" gorm:"type:varchar(255);not null" binding:"required" `
@@ -25,7 +25,7 @@ type Option struct {
 	OptionForm
 
 	//Pool    *Pool    `json:"pool,omitempty" gorm:"foreignkey:PoolID"`
-	Host    *Host `json:"host,omitempty" gorm:"foreignkey:HostID"`
+	Host *Host `json:"host,omitempty" gorm:"foreignkey:HostID"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -38,9 +38,9 @@ func (o Option) Level() int {
 			return 5
 		}
 		/*
-		if o.PoolID > 0 {
-			return 4
-		}
+			if o.PoolID > 0 {
+				return 4
+			}
 		*/
 
 		return 3
@@ -50,9 +50,9 @@ func (o Option) Level() int {
 		return 2
 	}
 	/*
-	if o.PoolID > 0 {
-		return 1
-	}
+		if o.PoolID > 0 {
+			return 1
+		}
 	*/
 
 	return 0

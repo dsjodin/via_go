@@ -5,11 +5,11 @@ import (
 )
 
 type HostForm struct {
-	IP           string    `json:"ip" gorm:"type:varchar(15);not null;index:uniqIp,unique"`
-	Mac          string    `json:"mac" gorm:"type:varchar(17);not null"`
-	Hostname     string    `json:"hostname" gorm:"type:varchar(255)"`
-	Domain       string    `json:"domain" gorm:"type:varchar(255)"`
-	Reimage      bool      `json:"reimage" gorm:"type:bool;index:uniqIp,unique"`
+	IP       string `json:"ip" gorm:"type:varchar(15);not null;index:uniqIp,unique"`
+	Mac      string `json:"mac" gorm:"type:varchar(17);not null"`
+	Hostname string `json:"hostname" gorm:"type:varchar(255)"`
+	Domain   string `json:"domain" gorm:"type:varchar(255)"`
+	Reimage  bool   `json:"reimage" gorm:"type:bool;index:uniqIp,unique"`
 	//PoolID       NullInt32 `json:"pool_id" gorm:"type:BIGINT" swaggertype:"integer"`
 	GroupID      NullInt32 `json:"group_id" gorm:"type:BIGINT" swaggertype:"integer"`
 	Progress     int       `json:"progress" gorm:"type:INT"`

@@ -140,37 +140,37 @@ func CreateHost(c *gin.Context) {
 	item.Mac = mac.String()
 
 	// validate that provided IP (if any) is inside the group's network
-    if strings.TrimSpace(item.IP) != "" {
-        ipAddr, err := netip.ParseAddr(item.IP)
-        if err != nil {
-            Error(c, http.StatusBadRequest, fmt.Errorf("invalid IP address: %w", err))
-            return
-        }
+	if strings.TrimSpace(item.IP) != "" {
+		ipAddr, err := netip.ParseAddr(item.IP)
+		if err != nil {
+			Error(c, http.StatusBadRequest, fmt.Errorf("invalid IP address: %w", err))
+			return
+		}
 
-        cidr, err := NetmaskToCIDR(group.Netmask)
-        if err != nil {
-            Error(c, http.StatusInternalServerError, fmt.Errorf("invalid group netmask: %w", err))
-            return
-        }
+		cidr, err := NetmaskToCIDR(group.Netmask)
+		if err != nil {
+			Error(c, http.StatusInternalServerError, fmt.Errorf("invalid group netmask: %w", err))
+			return
+		}
 
-        networkAddr, err := NetworkAddress(group.Gateway, group.Netmask)
-        if err != nil {
-            Error(c, http.StatusInternalServerError, fmt.Errorf("invalid group gateway/netmask: %w", err))
-            return
-        }
+		networkAddr, err := NetworkAddress(group.Gateway, group.Netmask)
+		if err != nil {
+			Error(c, http.StatusInternalServerError, fmt.Errorf("invalid group gateway/netmask: %w", err))
+			return
+		}
 
-        prefixStr := fmt.Sprintf("%s/%d", networkAddr, cidr)
-        pfx, err := netip.ParsePrefix(prefixStr)
-        if err != nil {
-            Error(c, http.StatusInternalServerError, fmt.Errorf("failed to parse network prefix %s: %w", prefixStr, err))
-            return
-        }
+		prefixStr := fmt.Sprintf("%s/%d", networkAddr, cidr)
+		pfx, err := netip.ParsePrefix(prefixStr)
+		if err != nil {
+			Error(c, http.StatusInternalServerError, fmt.Errorf("failed to parse network prefix %s: %w", prefixStr, err))
+			return
+		}
 
-        if !pfx.Contains(ipAddr) {
-            Error(c, http.StatusBadRequest, fmt.Errorf("ip %s is not in group's network %s", item.IP, prefixStr))
-            return
-        }
-    }
+		if !pfx.Contains(ipAddr) {
+			Error(c, http.StatusBadRequest, fmt.Errorf("ip %s is not in group's network %s", item.IP, prefixStr))
+			return
+		}
+	}
 
 	// if ip address checks pass, continue to commit.
 	if item.ID != 0 { // Save if its an existing item
@@ -309,69 +309,70 @@ func DeleteHost(c *gin.Context) {
 // (e.g. "192.168.1.0").
 // Returns an error for invalid input or non-IPv4 addresses.
 func NetworkAddress(gateway string, netmask string) (string, error) {
-    ip := net.ParseIP(strings.TrimSpace(gateway)).To4()
-    if ip == nil {
-        return "", errors.New("invalid IPv4 gateway")
-    }
+	ip := net.ParseIP(strings.TrimSpace(gateway)).To4()
+	if ip == nil {
+		return "", errors.New("invalid IPv4 gateway")
+	}
 
-    m := strings.TrimSpace(netmask)
+	m := strings.TrimSpace(netmask)
 
-    // accept "/24" or "24"
-    if strings.HasPrefix(m, "/") {
-        m = m[1:]
-    }
+	// accept "/24" or "24"
+	if strings.HasPrefix(m, "/") {
+		m = m[1:]
+	}
 
-    // If netmask is numeric (CIDR bits)
-    if bits, err := strconv.Atoi(m); err == nil {
-        if bits < 0 || bits > 32 {
-            return "", errors.New("invalid CIDR mask length")
-        }
-        mask := net.CIDRMask(bits, 32)
-        network := ip.Mask(mask)
-        return network.String(), nil
-    }
+	// If netmask is numeric (CIDR bits)
+	if bits, err := strconv.Atoi(m); err == nil {
+		if bits < 0 || bits > 32 {
+			return "", errors.New("invalid CIDR mask length")
+		}
+		mask := net.CIDRMask(bits, 32)
+		network := ip.Mask(mask)
+		return network.String(), nil
+	}
 
-    // Otherwise expect dotted decimal like "255.255.255.0"
-    pm := net.ParseIP(m)
-    if pm == nil {
-        return "", errors.New("invalid netmask format")
-    }
-    pm4 := pm.To4()
-    if pm4 == nil {
-        return "", errors.New("invalid IPv4 netmask")
-    }
-    mask := net.IPMask(pm4)
-    network := ip.Mask(mask)
-    return network.String(), nil
+	// Otherwise expect dotted decimal like "255.255.255.0"
+	pm := net.ParseIP(m)
+	if pm == nil {
+		return "", errors.New("invalid netmask format")
+	}
+	pm4 := pm.To4()
+	if pm4 == nil {
+		return "", errors.New("invalid IPv4 netmask")
+	}
+	mask := net.IPMask(pm4)
+	network := ip.Mask(mask)
+	return network.String(), nil
 }
+
 // NetmaskToCIDR converts a netmask in dotted-decimal ("255.255.255.0"),
 // or CIDR formats ("24" or "/24") to the CIDR prefix length (e.g. 24).
 func NetmaskToCIDR(maskStr string) (int, error) {
-    m := strings.TrimSpace(maskStr)
-    if strings.HasPrefix(m, "/") {
-        m = strings.TrimPrefix(m, "/")
-    }
+	m := strings.TrimSpace(maskStr)
+	if strings.HasPrefix(m, "/") {
+		m = strings.TrimPrefix(m, "/")
+	}
 
-    // If already numeric (CIDR)
-    if bits, err := strconv.Atoi(m); err == nil {
-        if bits < 0 || bits > 32 {
-            return 0, fmt.Errorf("invalid CIDR length: %d", bits)
-        }
-        return bits, nil
-    }
+	// If already numeric (CIDR)
+	if bits, err := strconv.Atoi(m); err == nil {
+		if bits < 0 || bits > 32 {
+			return 0, fmt.Errorf("invalid CIDR length: %d", bits)
+		}
+		return bits, nil
+	}
 
-    // Expect dotted decimal
-    ip := net.ParseIP(m)
-    if ip == nil {
-        return 0, fmt.Errorf("invalid netmask: %q", maskStr)
-    }
-    ip4 := ip.To4()
-    if ip4 == nil {
-        return 0, fmt.Errorf("invalid IPv4 netmask: %q", maskStr)
-    }
-    ones, bits := net.IPMask(ip4).Size()
-    if bits != 32 {
-        return 0, fmt.Errorf("unexpected mask size: %d", bits)
-    }
-    return ones, nil
+	// Expect dotted decimal
+	ip := net.ParseIP(m)
+	if ip == nil {
+		return 0, fmt.Errorf("invalid netmask: %q", maskStr)
+	}
+	ip4 := ip.To4()
+	if ip4 == nil {
+		return 0, fmt.Errorf("invalid IPv4 netmask: %q", maskStr)
+	}
+	ones, bits := net.IPMask(ip4).Size()
+	if bits != 32 {
+		return 0, fmt.Errorf("unexpected mask size: %d", bits)
+	}
+	return ones, nil
 }

@@ -16,8 +16,8 @@ import (
 	"github.com/maxiepax/go-via/models"
 	"github.com/maxiepax/go-via/secrets"
 	"github.com/maxiepax/go-via/uefi"
-	"github.com/maxiepax/go-via/webui"
 	"github.com/maxiepax/go-via/websockets"
+	"github.com/maxiepax/go-via/webui"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"

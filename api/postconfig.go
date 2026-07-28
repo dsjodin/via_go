@@ -71,13 +71,13 @@ func ProvisioningWorker(item models.Host, key string) {
 
 	// connection info
 	/*
-	url := &url.URL{
-		Scheme: "https",
-		Host:   item.IP,
-		Path:   "sdk",
-		User:   url.UserPassword("root", decryptedPassword),
-	}
-		*/
+		url := &url.URL{
+			Scheme: "https",
+			Host:   item.IP,
+			Path:   "sdk",
+			User:   url.UserPassword("root", decryptedPassword),
+		}
+	*/
 
 	logrus.WithFields(logrus.Fields{
 		"id":           item.ID,
@@ -90,58 +90,58 @@ func ProvisioningWorker(item models.Host, key string) {
 
 	// ensure that host has enough time to boot, and for SOAP API to respond
 	/*
-	var c *govmomi.Client
-	var err error
-	ctx := context.Background()
-	i := 1
-	timeout := 360
+		var c *govmomi.Client
+		var err error
+		ctx := context.Background()
+		i := 1
+		timeout := 360
 
-	for {
-		if i > timeout {
-			logrus.WithFields(logrus.Fields{
-				"IP":     item.IP,
-				"status": "timeout exceeded, failing postconfig",
-			}).Info("postconfig")
-			return
-		}
+		for {
+			if i > timeout {
+				logrus.WithFields(logrus.Fields{
+					"IP":     item.IP,
+					"status": "timeout exceeded, failing postconfig",
+				}).Info("postconfig")
+				return
+			}
 
-		if res := db.DB.First(&item, item.ID); res.Error != nil {
-			logrus.WithFields(logrus.Fields{
-				"IP":  item.IP,
-				"err": res.Error,
-			}).Error("postconfig failed to read state")
-			return
-		}
+			if res := db.DB.First(&item, item.ID); res.Error != nil {
+				logrus.WithFields(logrus.Fields{
+					"IP":  item.IP,
+					"err": res.Error,
+				}).Error("postconfig failed to read state")
+				return
+			}
 
-		if item.Progress == 0 {
-			logrus.WithFields(logrus.Fields{
-				"IP": item.IP,
-			}).Error("postconfig terminated")
-			return
-		}
+			if item.Progress == 0 {
+				logrus.WithFields(logrus.Fields{
+					"IP": item.IP,
+				}).Error("postconfig terminated")
+				return
+			}
 
-		c, err = govmomi.NewClient(ctx, url, true)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"IP":        item.IP,
-				"status":    "Hosts SOAP API not ready yet, retrying",
-				"retry":     i,
-				"retry max": timeout,
-			}).Info("postconfig")
-			logrus.WithFields(logrus.Fields{
-				"IP":        item.IP,
-				"status":    "Hosts SOAP API not ready yet, retrying",
-				"retry":     i,
-				"retry max": timeout,
-				"err":       err,
-			}).Debug("postconfig")
-			i += 1
-			<-time.After(time.Second * 10)
-			continue
+			c, err = govmomi.NewClient(ctx, url, true)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"IP":        item.IP,
+					"status":    "Hosts SOAP API not ready yet, retrying",
+					"retry":     i,
+					"retry max": timeout,
+				}).Info("postconfig")
+				logrus.WithFields(logrus.Fields{
+					"IP":        item.IP,
+					"status":    "Hosts SOAP API not ready yet, retrying",
+					"retry":     i,
+					"retry max": timeout,
+					"err":       err,
+				}).Debug("postconfig")
+				i += 1
+				<-time.After(time.Second * 10)
+				continue
+			}
+			break
 		}
-		break
-	}
-		*/
+	*/
 
 	//postconfig completed
 	logrus.WithFields(logrus.Fields{

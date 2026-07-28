@@ -11,9 +11,9 @@ type GroupForm struct {
 	Name        string         `json:"name" gorm:"type:varchar(255)"`
 	DNS         string         `json:"dns" gorm:"type:varchar(255)"`
 	NTP         string         `json:"ntp" gorm:"type:varchar(255)"`
-	Netmask		string         `json:"netmask" gorm:"type:varchar(255)"`
-	Gateway		string         `json:"gateway" gorm:"type:varchar(255)"`
-	Device		string         `json:"device" gorm:"type:varchar(255)"`
+	Netmask     string         `json:"netmask" gorm:"type:varchar(255)"`
+	Gateway     string         `json:"gateway" gorm:"type:varchar(255)"`
+	Device      string         `json:"device" gorm:"type:varchar(255)"`
 	Password    string         `json:"password" gorm:"type:varchar(255)"`
 	ImageID     int            `json:"image_id" gorm:"type:INT"`
 	Ks          string         `json:"ks" gorm:"type:text"`
@@ -30,9 +30,9 @@ type NoPWGroupForm struct {
 	Name        string         `json:"name" gorm:"type:varchar(255)"`
 	DNS         string         `json:"dns" gorm:"type:varchar(255)"`
 	NTP         string         `json:"ntp" gorm:"type:varchar(255)"`
-	Netmask		string         `json:"netmask" gorm:"type:varchar(255)"`
-	Gateway		string         `json:"gateway" gorm:"type:varchar(255)"`
-	Device		string         `json:"device" gorm:"type:varchar(255)"`
+	Netmask     string         `json:"netmask" gorm:"type:varchar(255)"`
+	Gateway     string         `json:"gateway" gorm:"type:varchar(255)"`
+	Device      string         `json:"device" gorm:"type:varchar(255)"`
 	ImageID     int            `json:"image_id" gorm:"type:INT"`
 	Ks          string         `json:"ks" gorm:"type:text"`
 	Syslog      string         `json:"syslog" gorm:"type:varchar(255)"`
@@ -41,7 +41,6 @@ type NoPWGroupForm struct {
 	BootDisk    string         `json:"bootdisk" gorm:"type:varchar(255)"`
 	Options     datatypes.JSON `json:"options" sql:"type:JSONB" swaggertype:"object,string"`
 	BootMethod  string         `json:"bootmethod" gorm:"type:varchar(255)"`
-
 }
 
 type Group struct {
@@ -51,7 +50,7 @@ type Group struct {
 
 	//Pool    *Pool     `json:"pool,omitempty" gorm:"foreignkey:PoolID"`
 	//Option  []Option  `json:"option,omitempty" gorm:"foreignkey:PoolID"`
-	Host    []Host `json:"host,omitempty" gorm:"foreignkey:GroupID"`
+	Host []Host `json:"host,omitempty" gorm:"foreignkey:GroupID"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -64,8 +63,8 @@ type NoPWGroup struct {
 	NoPWGroupForm
 
 	//Pool    *Pool     `json:"pool,omitempty" gorm:"foreignkey:PoolID"`
-	Option  []Option  `json:"option,omitempty" gorm:"foreignkey:PoolID"`
-	Host    []Host    `json:"host,omitempty" gorm:"foreignkey:GroupID"`
+	Option []Option `json:"option,omitempty" gorm:"foreignkey:PoolID"`
+	Host   []Host   `json:"host,omitempty" gorm:"foreignkey:GroupID"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
