@@ -1,5 +1,5 @@
 //go:generate bash -c "go get github.com/swaggo/swag/cmd/swag && swag init"
-//go:generate bash -c "cd web && rm -rf ./web/dist && npm install --legacy-peer-deps && npm run build && cd .. && go get github.com/rakyll/statik && statik -src ./web/dist -f"
+//go:generate bash -c "cd ui && npm ci && npm run build && cd .. && rm -rf webui/dist && cp -r ui/out webui/dist"
 
 package main
 
@@ -16,8 +16,8 @@ import (
 	"github.com/maxiepax/go-via/models"
 	"github.com/maxiepax/go-via/secrets"
 	"github.com/maxiepax/go-via/uefi"
+	"github.com/maxiepax/go-via/webui"
 	"github.com/maxiepax/go-via/websockets"
-	"github.com/rakyll/statik/fs"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -28,7 +28,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	_ "github.com/maxiepax/go-via/docs"
-	_ "github.com/maxiepax/go-via/statik"
 )
 
 var (
@@ -100,10 +99,11 @@ func main() {
 	efihttp := gin.New()
 	efihttp.Use(cors.Default())
 
-	statikFS, err := fs.New()
+	uiFS, err := webui.FS()
 	if err != nil {
 		logrus.Fatal(err)
 	}
+	uiServer := http.FileServer(http.FS(uiFS))
 
 	// ks.cfg is served at top to not place it behind BasicAuth
 	https.GET("ks.cfg", api.Ks(key))
@@ -183,13 +183,13 @@ func main() {
 	})
 
 	https.NoRoute(func(c *gin.Context) {
-		c.Request.URL.Path = "/web/" // force us to always return index.html and not the requested page to be compatible with HTML5 routing
-		http.FileServer(statikFS).ServeHTTP(c.Writer, c.Request)
+		c.Request.URL.Path = "/" // always return index.html rather than the requested page, to be compatible with HTML5 routing
+		uiServer.ServeHTTP(c.Writer, c.Request)
 	})
 
 	ui := https.Group("/")
 	{
-		ui.GET("/web/*all", gin.WrapH(http.FileServer(statikFS)))
+		ui.GET("/web/*all", gin.WrapH(http.StripPrefix("/web", uiServer)))
 		ui.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
