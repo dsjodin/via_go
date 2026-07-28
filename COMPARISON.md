@@ -270,7 +270,6 @@ govulncheck ./...   # 28 reachable, main and dev alike
 ```
 
 Repo metadata (stars, forks, license, push dates) via the GitHub API.
-Issue and PR contents were not retrievable — this session's GitHub access is
-scoped to `dsjodin/via_go`, so `maxiepax/go-via`'s 5 open issues were not read.
-Worth reviewing manually before finalising the roadmap; they may reprioritise
-Phase 2 and 3.
+
+`maxiepax/go-via`'s 5 open issues were reviewed separately and contain nothing
+that needs addressing, so the roadmap above stands as written.
