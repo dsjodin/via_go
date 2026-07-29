@@ -4,9 +4,9 @@ import (
 	"net"
 	"testing"
 
+	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/models"
 	"github.com/google/gopacket/layers"
-	"github.com/maxiepax/go-via/db"
-	"github.com/maxiepax/go-via/models"
 )
 
 var serverIP = net.IPv4(192, 168, 1, 2)

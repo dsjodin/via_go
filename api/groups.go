@@ -10,11 +10,11 @@ import (
 
 	/*_ "github.com/GehirnInc/crypt/sha512_crypt"*/
 
+	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/models"
+	"github.com/dsjodin/via_go/secrets"
 	"github.com/gin-gonic/gin"
 	"github.com/imdario/mergo"
-	"github.com/maxiepax/go-via/db"
-	"github.com/maxiepax/go-via/models"
-	"github.com/maxiepax/go-via/secrets"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )

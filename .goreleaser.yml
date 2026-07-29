@@ -42,8 +42,8 @@ dockers:
   - ids:
       - go-via
     image_templates:
-      - "docker.io/maxiepax/go-via:{{ .Version }}"
-      - "docker.io/maxiepax/go-via:latest"
+      - "docker.io/dsjodin/go-via:{{ .Version }}"
+      - "docker.io/dsjodin/go-via:latest"
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"

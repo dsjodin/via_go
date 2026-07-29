@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/models"
 	"github.com/gin-gonic/gin"
 	"github.com/imdario/mergo"
-	"github.com/maxiepax/go-via/db"
-	"github.com/maxiepax/go-via/models"
 	"gorm.io/gorm"
 )
 

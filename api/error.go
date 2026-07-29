@@ -1,8 +1,8 @@
 package api
 
 import (
+	"github.com/dsjodin/via_go/models"
 	"github.com/gin-gonic/gin"
-	"github.com/maxiepax/go-via/models"
 )
 
 func Error(c *gin.Context, status int, err error) {

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/models"
+	"github.com/dsjodin/via_go/secrets"
 	"github.com/gin-gonic/gin"
-	"github.com/maxiepax/go-via/db"
-	"github.com/maxiepax/go-via/models"
-	"github.com/maxiepax/go-via/secrets"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/clause"
 )

@@ -1,0 +1,28 @@
+via_go
+======
+
+Copyright (C) 2026 Daniel Sjödin and contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See LICENSE for the full text.
+
+
+Origin
+------
+
+This project is a fork of go-via by Max Fahlgren (maxiepax) and contributors:
+
+    https://github.com/maxiepax/go-via
+
+It was forked from commit 12145e1 on the upstream `dev` branch (2026-03-07),
+and remains licensed under the GNU General Public License v3.0 as the original
+is. Substantial portions of this program are the original authors' work,
+including the DHCP server, the ESXi boot file handling, the kickstart template
+and the vSphere post-configuration.
+
+The upstream project credits Jonathan "stamp" G (https://github.com/stamp) for
+guidance during its development.
+
+Changes made in this fork are recorded in the git history.

@@ -8,16 +8,16 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/maxiepax/go-via/api"
-	"github.com/maxiepax/go-via/config"
-	ca "github.com/maxiepax/go-via/crypto"
-	"github.com/maxiepax/go-via/db"
-	"github.com/maxiepax/go-via/dhcpd"
-	"github.com/maxiepax/go-via/models"
-	"github.com/maxiepax/go-via/secrets"
-	"github.com/maxiepax/go-via/uefi"
-	"github.com/maxiepax/go-via/websockets"
-	"github.com/maxiepax/go-via/webui"
+	"github.com/dsjodin/via_go/api"
+	"github.com/dsjodin/via_go/config"
+	ca "github.com/dsjodin/via_go/crypto"
+	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/dhcpd"
+	"github.com/dsjodin/via_go/models"
+	"github.com/dsjodin/via_go/secrets"
+	"github.com/dsjodin/via_go/uefi"
+	"github.com/dsjodin/via_go/websockets"
+	"github.com/dsjodin/via_go/webui"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -27,7 +27,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	_ "github.com/maxiepax/go-via/docs"
+	_ "github.com/dsjodin/via_go/docs"
 )
 
 var (

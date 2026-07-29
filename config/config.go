@@ -4,8 +4,8 @@ import (
 	"flag"
 	"net"
 
+	"github.com/dsjodin/via_go/dhcpd"
 	"github.com/koding/multiconfig"
-	"github.com/maxiepax/go-via/dhcpd"
 	"github.com/sirupsen/logrus"
 )
 

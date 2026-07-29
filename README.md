@@ -56,7 +56,7 @@ Option A: create the following docker-compose.yaml file to not specify a config 
 version: "3.9"
 services:
   go-via:
-    image: maxiepax/go-via:latest
+    image: dsjodin/go-via:latest
     network_mode: host
     volumes:
       - ./tftp:/go/tftp
@@ -72,7 +72,7 @@ Option B: or create this docker-compose.yaml to specify a config file, and place
 version: "3.9"
 services:
   go-via:
-    image: maxiepax/go-via:latest
+    image: dsjodin/go-via:latest
     network_mode: host
     volumes:
       - ./tftp:/go/tftp
@@ -105,7 +105,7 @@ Most linux distributions should work, this has been tested on Ubuntu 20.20.
 
 ``` bash
 #wget the release you want to download, e.g go-via_.<release>_linux_amd64.tar.gz
-wget https://github.com/maxiepax/go-via/releases/download/<release>/go-via_.<release>_linux_amd64.tar.gz
+wget https://github.com/dsjodin/via_go/releases/download/<release>/go-via_.<release>_linux_amd64.tar.gz
 
 
 #untar/extract it
@@ -197,8 +197,8 @@ terminal 1:
 ``` bash
 mkdir ~/go
 cd ~/go
-git clone https://github.com/maxiepax/go-via.git
-cd go-via
+git clone https://github.com/dsjodin/via_go.git
+cd via_go
 go run *.go
 ```
 

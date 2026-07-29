@@ -1,4 +1,4 @@
-module github.com/maxiepax/go-via
+module github.com/dsjodin/via_go
 
 go 1.25.0
 

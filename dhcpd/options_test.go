@@ -7,9 +7,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/models"
 	"github.com/google/gopacket/layers"
-	"github.com/maxiepax/go-via/db"
-	"github.com/maxiepax/go-via/models"
 )
 
 var dbSeq uint64
