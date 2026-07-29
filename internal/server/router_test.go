@@ -2,10 +2,13 @@ package server
 
 import (
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/fstest"
 
 	"github.com/dsjodin/via_go/internal/api"
 	"github.com/dsjodin/via_go/internal/config"
@@ -17,6 +20,13 @@ import (
 var routerSeq uint64
 
 func newRouters(t *testing.T) (apiRouter, bootRouter *gin.Engine) {
+	t.Helper()
+	return newRoutersWithUI(t, nil)
+}
+
+// newRoutersWithUI builds the routers over a given frontend; nil uses the
+// embedded one.
+func newRoutersWithUI(t *testing.T, ui fs.FS) (apiRouter, bootRouter *gin.Engine) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -39,6 +49,7 @@ func newRouters(t *testing.T) (apiRouter, bootRouter *gin.Engine) {
 	a, b, err := NewRouters(Options{
 		Config:    &config.Config{Port: 8443},
 		SecretKey: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+		UI:        ui,
 		Version:   Version{Version: "test", Commit: "none", Date: "unknown"},
 	})
 	if err != nil {
@@ -144,19 +155,6 @@ func TestBootRouterExposesNothingElse(t *testing.T) {
 	}
 }
 
-// Unknown paths return the single page app so it can route them client side.
-func TestUnknownPathServesTheUI(t *testing.T) {
-	apiRouter, _ := newRouters(t)
-
-	rec := get(apiRouter, "/hosts/1/edit", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET an app route = %d, want 200", rec.Code)
-	}
-	if ct := rec.Header().Get("Content-Type"); ct == "" {
-		t.Error("no content type on the UI response")
-	}
-}
-
 func TestUIAndSwaggerAreServed(t *testing.T) {
 	apiRouter, _ := newRouters(t)
 
@@ -181,7 +179,7 @@ func TestUIIsReachableWithoutCredentials(t *testing.T) {
 	}{
 		{"entry point", "/", http.StatusFound},
 		{"app shell", "/web/", http.StatusOK},
-		{"deep link", "/hosts", http.StatusOK},
+		{"unknown path", "/hosts", http.StatusFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if code := get(apiRouter, tc.path, false).Code; code != tc.want {
@@ -199,13 +197,67 @@ func TestUIIsReachableWithoutCredentials(t *testing.T) {
 	})
 }
 
-// The entry point people actually type is the bare address. It must land on
-// the app rather than on whatever NoRoute happens to do.
-func TestRootRedirectsToTheUI(t *testing.T) {
+// exportFS mirrors the shape of a real `next build` export: trailingSlash puts
+// one index.html per route inside a directory of that name, and the shared
+// chunks live under _next. The committed webui/dist is a single placeholder
+// page, so it cannot catch a routing mistake that only shows up on the
+// non-root pages — which is exactly the mistake that has been made here.
+func exportFS() fs.FS {
+	return fstest.MapFS{
+		"index.html":            {Data: []byte("<html>root</html>")},
+		"images/index.html":     {Data: []byte("<html>images</html>")},
+		"login/index.html":      {Data: []byte("<html>login</html>")},
+		"_next/static/chunk.js": {Data: []byte("console.log(1)")},
+		"404.html":              {Data: []byte("<html>404</html>")},
+	}
+}
+
+// A reload or a typed URL on any page but the root must work. Client-side
+// navigation hides a failure here, because next/link never asks the server for
+// the document — so this only surfaces when someone refreshes, and then the
+// whole page is gone.
+func TestExportedRoutesAreServedOnAFullPageLoad(t *testing.T) {
+	apiRouter, _ := newRoutersWithUI(t, exportFS())
+
+	t.Run("page", func(t *testing.T) {
+		rec := get(apiRouter, "/web/images/", false)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /web/images/ = %d, want 200", rec.Code)
+		}
+		if body := rec.Body.String(); !strings.Contains(body, "images") {
+			t.Errorf("served %q, want the images document", body)
+		}
+	})
+
+	// Without the trailing slash the file server redirects. The Location it
+	// sends is relative, so the browser resolves it against /web/images and
+	// keeps the prefix; an absolute one would drop out of /web entirely.
+	t.Run("without a trailing slash", func(t *testing.T) {
+		rec := get(apiRouter, "/web/images", false)
+		if rec.Code != http.StatusMovedPermanently {
+			t.Fatalf("GET /web/images = %d, want 301", rec.Code)
+		}
+		if loc := rec.Header().Get("Location"); loc != "images/" {
+			t.Errorf("redirected to %q, want the relative %q", loc, "images/")
+		}
+	})
+
+	t.Run("shared chunks", func(t *testing.T) {
+		if code := get(apiRouter, "/web/_next/static/chunk.js", false).Code; code != http.StatusOK {
+			t.Errorf("GET a _next chunk = %d, want 200", code)
+		}
+	})
+}
+
+// The entry point people actually type is the bare address, and anything else
+// outside /web is not an app route at all. Both land on the app.
+func TestPathsOutsideTheUIRedirectToIt(t *testing.T) {
 	apiRouter, _ := newRouters(t)
 
-	rec := get(apiRouter, "/", false)
-	if got := rec.Header().Get("Location"); got != "/web/" {
-		t.Errorf("GET / redirected to %q, want %q", got, "/web/")
+	for _, path := range []string{"/", "/hosts/1/edit"} {
+		rec := get(apiRouter, path, false)
+		if got := rec.Header().Get("Location"); got != "/web/" {
+			t.Errorf("GET %s redirected to %q, want %q", path, got, "/web/")
+		}
 	}
 }

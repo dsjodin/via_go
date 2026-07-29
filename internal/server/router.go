@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -37,6 +38,12 @@ type Options struct {
 	// if it is nil.
 	Auth *api.Auth
 
+	// UI is the built frontend to serve under /web. NewRouters uses the
+	// embedded build if it is nil; tests supply a stand-in, because the
+	// committed webui/dist is only a placeholder and the layout of a real
+	// export is exactly what the routing has to get right.
+	UI fs.FS
+
 	Version Version
 }
 
@@ -56,12 +63,14 @@ func NewRouters(opts Options) (apiRouter *gin.Engine, bootRouter *gin.Engine, er
 		}
 	}
 
-	uiFS, err := webui.FS()
-	if err != nil {
-		return nil, nil, err
+	if opts.UI == nil {
+		opts.UI, err = webui.FS()
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
-	return newAPIRouter(opts, http.FileServer(http.FS(uiFS))), newBootRouter(opts), nil
+	return newAPIRouter(opts, http.FileServer(http.FS(opts.UI))), newBootRouter(opts), nil
 }
 
 // newBootRouter serves only the ESXi boot files, unauthenticated, for clients
@@ -114,12 +123,11 @@ func newAPIRouter(opts Options, uiServer http.Handler) *gin.Engine {
 	// The bare address is what people type.
 	r.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/web/") })
 
-	r.NoRoute(func(c *gin.Context) {
-		// Always return index.html rather than the requested path, so the
-		// single page app can handle its own routing.
-		c.Request.URL.Path = "/"
-		uiServer.ServeHTTP(c.Writer, c.Request)
-	})
+	// Anything else goes to the app. Serving index.html in place here would be
+	// worse than a redirect: the export prerenders one HTML file per route, so
+	// the root document at some other path hydrates against a pathname the
+	// router does not recognise.
+	r.NoRoute(func(c *gin.Context) { c.Redirect(http.StatusFound, "/web/") })
 
 	// --- authenticated ---
 
