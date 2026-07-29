@@ -1,20 +1,18 @@
 package uefi
 
 import (
-	"encoding/json"
-	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+
 	"github.com/dsjodin/via_go/config"
 	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/internal/boot"
 	"github.com/dsjodin/via_go/models"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/clause"
-	"net"
-	"net/http"
-	"os"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 func Files(conf *config.Config) func(c *gin.Context) {
@@ -31,38 +29,12 @@ func Files(conf *config.Config) func(c *gin.Context) {
 		var image models.Image
 		db.DB.First(&image, "id = ?", host.Group.ImageID)
 
-		//c.String(http.StatusOK, filepath)
-
 		switch filepath {
 		case "/mboot.efi":
-			logrus.WithFields(logrus.Fields{
-				ip: "requesting mboot.efi",
-			}).Info("uefi-https")
-			logrus.WithFields(logrus.Fields{
-				"id":           host.ID,
-				"percentage":   10,
-				"progresstext": "mboot.efi",
-			}).Info("progress")
-			filepath, _ = UEFImboot(image.Path)
-			host.Progress = 10
-			host.Progresstext = "mboot.efi"
-			db.DB.Save(&host)
-			c.File(filepath)
+			serveLoader(c, &host, boot.Mboot, image.Path, ip, "mboot.efi", 10)
 			return
 		case "/crypto64.efi":
-			logrus.WithFields(logrus.Fields{
-				ip: "requesting crypto64.efi",
-			}).Info("uefi-https")
-			logrus.WithFields(logrus.Fields{
-				"id":           host.ID,
-				"percentage":   12,
-				"progresstext": "crypto64.efi",
-			}).Info("progress")
-			filepath, _ = UEFIcrypto64(image.Path)
-			host.Progress = 12
-			host.Progresstext = "crypto64.efi"
-			db.DB.Save(&host)
-			c.File(filepath)
+			serveLoader(c, &host, boot.Crypto64, image.Path, ip, "crypto64.efi", 12)
 			return
 		case "boot.cfg", "/boot.cfg":
 			localAddr, _ := c.Request.Context().Value(http.LocalAddrContextKey).(net.Addr)
@@ -97,37 +69,36 @@ func Files(conf *config.Config) func(c *gin.Context) {
 	}
 }
 
-func UEFImboot(imagePath string) (string, error) {
-	//check these paths if the file exists.
-	paths := []string{"/EFI/BOOT/BOOTX64.EFI", "/EFI/BOOT/BOOTAA64.EFI", "/MBOOT.EFI", "/mboot.efi", "/efi/boot/bootx64.efi", "/efi/boot/bootaa64.efi"}
+// serveLoader sends one of the loader binaries from inside the host's image and
+// records the progress that reaching it represents.
+func serveLoader(c *gin.Context, host *models.Host, locate func(string) (string, error), imagePath, ip, name string, progress int) {
+	logrus.WithFields(logrus.Fields{
+		ip: "requesting " + name,
+	}).Info("uefi-https")
 
-	for _, v := range paths {
-		if _, err := os.Stat(imagePath + v); err == nil {
-			return imagePath + v, nil
-		}
+	path, err := locate(imagePath)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"image": imagePath,
+			"error": err,
+		}).Error("uefi-https")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not locate " + name})
+		return
 	}
 
-	//couldn't find the file
-	return "", fmt.Errorf("could not locate a mboot.efi")
-}
+	logrus.WithFields(logrus.Fields{
+		"id":           host.ID,
+		"percentage":   progress,
+		"progresstext": name,
+	}).Info("progress")
+	host.Progress = progress
+	host.Progresstext = name
+	db.DB.Save(host)
 
-func UEFIcrypto64(imagePath string) (string, error) {
-	//check these paths if the file exists.
-	paths := []string{"/EFI/BOOT/CRYPTO64.EFI", "/efi/boot/crypto64.efi"}
-
-	for _, v := range paths {
-		if _, err := os.Stat(imagePath + v); err == nil {
-			return imagePath + v, nil
-		}
-	}
-
-	//couldn't find the file
-	return "", fmt.Errorf("could not locate a crypto64.efi")
+	c.File(path)
 }
 
 func serveBootCfg(filepath string, host models.Host, image models.Image, conf *config.Config, localip string, remoteip string) ([]byte, error) {
-	//if the filepath is boot.cfg, or /boot.cfg, we serve the boot cfg that belongs to that build. unfortunately, it seems boot.cfg or /boot.cfg varies in builds.
-
 	var group models.Group
 	db.DB.Preload(clause.Associations).First(&group, "id = ?", host.GroupID)
 
@@ -143,69 +114,34 @@ func serveBootCfg(filepath string, host models.Host, image models.Image, conf *c
 	host.Progresstext = "installation"
 	db.DB.Save(&host)
 
-	bc, err := os.ReadFile(image.Path + "/BOOT.CFG")
+	path, err := boot.Config(image.Path)
 	if err != nil {
 		logrus.Warn(err)
 		return nil, err
 	}
 
-	// strip slashes from paths in file
-	re := regexp.MustCompile("/")
-	bc = re.ReplaceAllLiteral(bc, []byte(""))
-
-	// remove cdromBoot from kernelopt line
-	re = regexp.MustCompile("cdromBoot")
-	bc = re.ReplaceAllLiteral(bc, []byte(""))
-
-	// add kickstart path to kernelopt
-	re = regexp.MustCompile("kernelopt=.*")
-	o := re.Find(bc)
-	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" ks=https://"+localip+":"+strconv.Itoa(conf.Port)+"/ks.cfg")...))
-
-	// append the mac address of the hardware interface to ensure ks.cfg request comes from the right interface, along with ip, netmask and gateway.
-	/*
-		nm := net.CIDRMask(host.Pool.Netmask, 32)
-		netmask := ipv4MaskString(nm)
-	*/
-
-	re = regexp.MustCompile("kernelopt=.*")
-	o = re.Find(bc)
-	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" netdevice="+host.Mac+" ip="+host.IP+" netmask="+group.Netmask+" gateway="+group.Gateway)...))
-
-	// if vlan is configured for the group, append the vlan to kernelopts
-	if host.Group.Vlan != "" {
-		re = regexp.MustCompile("kernelopt=.*")
-		o = re.Find(bc)
-		bc = re.ReplaceAllLiteral(bc, append(o, []byte(" vlanid="+host.Group.Vlan)...))
+	bc, err := os.ReadFile(path)
+	if err != nil {
+		logrus.Warn(err)
+		return nil, err
 	}
 
-	// load options from the group
-	options := models.GroupOptions{}
-	if err := json.Unmarshal(host.Group.Options, &options); err != nil {
-		logrus.WithField("err", err).Warn("could not parse group options, treating them as unset")
-	}
-
-	// if autopart is configured for the group, append autopart to kernelopt - https://kb.vmware.com/s/article/77009
-	/*
-		if options.AutoPart {
-			re = regexp.MustCompile("kernelopt=.*")
-			o = re.Find(bc)
-			bc = re.ReplaceAllLiteral(bc, append(o, []byte(" autoPartitionOnlyOnceAndSkipSsd=true")...))
-		}*/
-
-	// add allowLegacyCPU=true to kernelopt
-	re = regexp.MustCompile("kernelopt=.*")
-	o = re.Find(bc)
-	bc = re.ReplaceAllLiteral(bc, append(o, []byte(" allowLegacyCPU=true")...))
-
-	// replace prefix with prefix=foldername
-	re = regexp.MustCompile("prefix=")
-	o = re.Find(bc)
-	bc = re.ReplaceAllLiteral(bc, append(o, []byte("https://"+localip+":"+strconv.Itoa(conf.Port)+"/esx/")...))
+	out := boot.RenderConfig(bc, boot.Params{
+		// The loader fetches the rest of the image back over HTTPS from here.
+		Prefix:       boot.HTTPPrefix("https", localip, conf.Port),
+		KickstartURL: boot.KickstartURL(localip, conf.Port),
+		Mac:          host.Mac,
+		IP:           host.IP,
+		Netmask:      group.Netmask,
+		Gateway:      group.Gateway,
+		Vlan:         host.Group.Vlan,
+		// Matches --forceunsupportedinstall in the kickstart template.
+		AllowLegacyCPU: true,
+	})
 
 	logrus.WithFields(logrus.Fields{
 		"file": filepath,
 	}).Info("uefi-https")
 
-	return bc, nil
+	return out, nil
 }
