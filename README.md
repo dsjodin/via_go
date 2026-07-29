@@ -34,6 +34,23 @@ username: admin <br>
 password: VMware1!<br>
 port: 8443<br>
 
+The admin account is seeded with that password and flagged as needing a change.
+go-via warns about it on every start and the UI asks you to replace it at first
+login. Do so — this appliance stores and hands out ESXi root passwords.
+
+Authentication
+--------------
+The UI logs in at `POST /v1/login` and receives an HttpOnly session cookie;
+`POST /v1/logout` invalidates it server side. Automation can keep using HTTP
+basic auth on any endpoint, which is what the scripts in `example-scripts/` do:
+
+``` bash
+curl --user admin:VMware1! --insecure https://localhost:8443/v1/hosts
+```
+
+Repeated failures are throttled per account and source address, on both the
+login endpoint and basic auth.
+
 Installation / Running
 ----------------------
 <h3> Option 1: docker compose </h3>
