@@ -1,6 +1,8 @@
 # Keep the build context small and reproducible. Anything generated inside the
 # image must not be shadowed by a stale copy from the working tree.
-.git
+# .git is deliberately NOT ignored: the Go toolchain reads it to stamp the
+# commit into the binary, which is what makes /v1/version able to say which
+# build is running. Losing that stamp is how a stale container hides.
 .github
 
 ui/node_modules

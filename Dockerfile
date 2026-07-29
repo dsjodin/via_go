@@ -36,7 +36,10 @@ COPY . .
 RUN rm -rf webui/dist
 COPY --from=ui /src/ui/out ./webui/dist
 
-RUN go build -ldflags="-s -w" -o /out/go-via ./cmd/go-via
+# -buildvcs stamps the commit from the .git in the context, so /v1/version
+# reports the build rather than "none". It is the default, but stated here
+# because the whole point of shipping .git into the context is this flag.
+RUN go build -buildvcs=auto -ldflags="-s -w" -o /out/go-via ./cmd/go-via
 
 # ---- runtime --------------------------------------------------------------
 FROM debian:bookworm-slim

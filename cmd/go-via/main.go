@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"runtime/debug"
 	"strconv"
 
 	"github.com/dsjodin/via_go/internal/api"
@@ -26,11 +27,41 @@ import (
 // database. It is documented, so it is only ever a starting point.
 const defaultPassword = "VMware1!"
 
+// Build identity, reported at startup and by /v1/version. goreleaser sets
+// these with -ldflags; any other build falls back to what the toolchain
+// recorded, so "which build is running" is always answerable.
 var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
 )
+
+// init fills in the build identity from the toolchain's own VCS stamping when
+// it was not passed on the command line. Answering this took three attempts
+// once, on a container that turned out never to have been rebuilt.
+func init() {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if commit == "none" {
+				commit = s.Value
+			}
+		case "vcs.time":
+			if date == "unknown" {
+				date = s.Value
+			}
+		case "vcs.modified":
+			if s.Value == "true" {
+				version += "-dirty"
+			}
+		}
+	}
+}
 
 // @title go-via
 // @version 0.1

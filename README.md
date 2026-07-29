@@ -68,6 +68,17 @@ cd via_go
 sudo docker compose up -d --build
 ```
 
+Upgrading is the same command — `git pull && sudo docker compose up -d --build`
+— and it is worth confirming it took, because a container that quietly kept
+running the old image looks exactly like a bug that would not go away:
+
+``` bash
+curl -sk https://<address>/v1/version -u admin:<password>
+```
+
+`commit` there is the revision the running binary was built from, stamped by
+the Go toolchain. It should match `git rev-parse HEAD`.
+
 Host networking is required rather than merely convenient: the DHCP server has
 to see broadcast traffic on the real interfaces, and the boot services bind
 67/udp, 69/udp and 80.
@@ -161,7 +172,7 @@ WantedBy=multi-user.target
 
 You should be greeted with the following output.
 ``` bash
-INFO[0000] Startup                                       commit=none date=unknown version=dev
+INFO[0000] Startup                                       commit=4509740f469dce89e5dca2705ede663b6cd9b111 date=2026-07-29T14:25:27Z version=dev
 WARN[0000] no interfaces have been configured, trying to find interfaces to serve to, will serve on all. 
 INFO[0000] Existing database sqlite-database.db found   
 INFO[0000] Starting dhcp server                          int=ens224 ip=172.16.100.1 mac="00:0c:29:91:cf:eb"
