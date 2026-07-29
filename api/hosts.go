@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/dsjodin/via_go/db"
+	"github.com/dsjodin/via_go/internal/netutil"
 	"github.com/dsjodin/via_go/models"
 	"github.com/gin-gonic/gin"
 	"github.com/imdario/mergo"
@@ -147,13 +148,13 @@ func CreateHost(c *gin.Context) {
 			return
 		}
 
-		cidr, err := NetmaskToCIDR(group.Netmask)
+		cidr, err := netutil.NetmaskToCIDR(group.Netmask)
 		if err != nil {
 			Error(c, http.StatusInternalServerError, fmt.Errorf("invalid group netmask: %w", err))
 			return
 		}
 
-		networkAddr, err := NetworkAddress(group.Gateway, group.Netmask)
+		networkAddr, err := netutil.NetworkAddress(group.Gateway, group.Netmask)
 		if err != nil {
 			Error(c, http.StatusInternalServerError, fmt.Errorf("invalid group gateway/netmask: %w", err))
 			return
@@ -301,74 +302,4 @@ func DeleteHost(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusNoContent, gin.H{}) //204
-}
-
-// NetworkAddress returns the IPv4 network address for the provided gateway IP
-// and netmask. netmask may be either a CIDR length ("24" or "/24") or dotted
-// decimal ("255.255.255.0"). Returned network is the base network address
-// (e.g. "192.168.1.0").
-// Returns an error for invalid input or non-IPv4 addresses.
-func NetworkAddress(gateway string, netmask string) (string, error) {
-	ip := net.ParseIP(strings.TrimSpace(gateway)).To4()
-	if ip == nil {
-		return "", errors.New("invalid IPv4 gateway")
-	}
-
-	m := strings.TrimSpace(netmask)
-
-	// accept "/24" or "24"
-	m = strings.TrimPrefix(m, "/")
-
-	// If netmask is numeric (CIDR bits)
-	if bits, err := strconv.Atoi(m); err == nil {
-		if bits < 0 || bits > 32 {
-			return "", errors.New("invalid CIDR mask length")
-		}
-		mask := net.CIDRMask(bits, 32)
-		network := ip.Mask(mask)
-		return network.String(), nil
-	}
-
-	// Otherwise expect dotted decimal like "255.255.255.0"
-	pm := net.ParseIP(m)
-	if pm == nil {
-		return "", errors.New("invalid netmask format")
-	}
-	pm4 := pm.To4()
-	if pm4 == nil {
-		return "", errors.New("invalid IPv4 netmask")
-	}
-	mask := net.IPMask(pm4)
-	network := ip.Mask(mask)
-	return network.String(), nil
-}
-
-// NetmaskToCIDR converts a netmask in dotted-decimal ("255.255.255.0"),
-// or CIDR formats ("24" or "/24") to the CIDR prefix length (e.g. 24).
-func NetmaskToCIDR(maskStr string) (int, error) {
-	m := strings.TrimSpace(maskStr)
-	m = strings.TrimPrefix(m, "/")
-
-	// If already numeric (CIDR)
-	if bits, err := strconv.Atoi(m); err == nil {
-		if bits < 0 || bits > 32 {
-			return 0, fmt.Errorf("invalid CIDR length: %d", bits)
-		}
-		return bits, nil
-	}
-
-	// Expect dotted decimal
-	ip := net.ParseIP(m)
-	if ip == nil {
-		return 0, fmt.Errorf("invalid netmask: %q", maskStr)
-	}
-	ip4 := ip.To4()
-	if ip4 == nil {
-		return 0, fmt.Errorf("invalid IPv4 netmask: %q", maskStr)
-	}
-	ones, bits := net.IPMask(ip4).Size()
-	if bits != 32 {
-		return 0, fmt.Errorf("unexpected mask size: %d", bits)
-	}
-	return ones, nil
 }

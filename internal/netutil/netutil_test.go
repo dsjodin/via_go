@@ -1,4 +1,4 @@
-package dhcpd
+package netutil
 
 import "testing"
 
