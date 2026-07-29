@@ -1,3 +1,9 @@
+# Every path below is anchored with a leading slash so it matches only at the
+# repository root. Without the slash git matches the name at any depth, and a
+# runtime directory name then swallows source that happens to share it —
+# `images/` once made ui/src/app/images/page.js untrackable, so the Images
+# screen was missing from every clone while still building locally.
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -8,21 +14,16 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Output of the go coverage tool
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-tftp
-tftp/*
-*.db
-go-via
-database/sqlite-database*
-cert
-cert/*
-secret
-secret/*
-images
-images/
-iso/
-iso/*
+/go-via
+/*.db
+
+# Runtime state. These are the compose bind mounts; see docker-compose.yml.
+/tftp/
+/database/
+/cert/
+/secret/
+/images/
+/iso/

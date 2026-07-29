@@ -12,11 +12,8 @@ ui/out
 dist/
 
 # Runtime state, which belongs in the compose volumes rather than the image.
-# These patterns are matched against every path copied into the build,
-# including the contents of a cross-stage COPY — so a pattern here can delete
-# a file the build generated itself. images/ once removed the UI's /images
-# page that way. The Dockerfile transfers the frontend as an archive to stay
-# out of reach of this, and asserts afterwards that every route survived.
+# Unlike .gitignore, these patterns are anchored to the context root already,
+# so images/ here means the ESXi ISO directory and nothing else.
 database/
 secret/
 cert/

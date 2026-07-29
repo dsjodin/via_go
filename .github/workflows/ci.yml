@@ -90,6 +90,19 @@ jobs:
         working-directory: ui
         run: npm run build
 
+      # A navigation entry whose page is not in the repository builds fine and
+      # 404s in production. It happened: .gitignore matched the Images route's
+      # directory, so the file existed on one machine and in no clone. This
+      # step runs against the checkout, which is the thing that was wrong.
+      - name: every navigation target has a page
+        working-directory: ui
+        run: |
+          grep -o 'href: "/[a-z-]*"' src/components/Shell.jsx | cut -d'"' -f2 |
+          while read -r href; do
+            test -f "out${href}/index.html" \
+              || { echo "::error::no page exported for the $href navigation entry"; exit 1; }
+          done
+
   docker:
     name: docker
     runs-on: ubuntu-latest
