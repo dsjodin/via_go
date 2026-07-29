@@ -27,15 +27,7 @@ import (
 // @Success 200 {array} model.Group
 // @Failure 500 {object} model.APIError
 // @Router /groups [get]
-func ListGroups(c *gin.Context) {
-	var items []model.Group
-	if res := store.DB.Find(&items); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	c.JSON(http.StatusOK, items) // 200
-}
+func ListGroups(c *gin.Context) { List[model.Group](c) }
 
 // GetGroup Get an existing group
 // @Summary Get an existing group
@@ -48,26 +40,7 @@ func ListGroups(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /groups/{id} [get]
-func GetGroup(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.Group
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func GetGroup(c *gin.Context) { Get[model.Group](c) }
 
 // CreateGroup Create a new groups
 // @Summary Create a new group
@@ -226,37 +199,7 @@ func UpdateGroup(key string) func(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /groups/{id} [delete]
-func DeleteGroup(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.Group
-	if res := store.DB.Preload("Host").First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	// check if the group is empty, if it's not, deny the delete.
-	if len(item.Host) < 1 {
-		// Delete it
-		if res := store.DB.Delete(&item); res.Error != nil {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-			return
-		}
-		c.JSON(http.StatusNoContent, gin.H{}) //204
-	} else {
-		c.JSON(http.StatusConflict, "the group is not empty, please delete all hosts first.")
-	}
-
-}
+func DeleteGroup(c *gin.Context) { Delete[model.Group](c) }
 
 func verifyPassword(s string) error {
 	number := false

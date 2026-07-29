@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -19,7 +18,6 @@ import (
 	"github.com/dsjodin/via_go/internal/model"
 	"github.com/dsjodin/via_go/internal/store"
 	"github.com/gin-gonic/gin"
-	"github.com/imdario/mergo"
 	"github.com/kdomanski/iso9660/util"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -33,14 +31,7 @@ import (
 // @Success 200 {array} model.Image
 // @Failure 500 {object} model.APIError
 // @Router /images [get]
-func ListImages(c *gin.Context) {
-	var items []model.Image
-	if res := store.DB.Find(&items); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-	c.JSON(http.StatusOK, items) // 200
-}
+func ListImages(c *gin.Context) { List[model.Image](c) }
 
 // GetImage Get an existing image
 // @Summary Get an existing image
@@ -53,26 +44,7 @@ func ListImages(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /images/{id} [get]
-func GetImage(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.Image
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func GetImage(c *gin.Context) { Get[model.Image](c) }
 
 // CreateImage Create a new images
 // @Summary Create a new image
@@ -245,48 +217,7 @@ func SaveUploadedFile(file *multipart.FileHeader, dst string) (int64, error) {
 // @Failure 500 {object} model.APIError
 // @Router /images/{id} [patch]
 func UpdateImage(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the form data
-	var form model.ImageForm
-	if err := c.ShouldBind(&form); err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.Image
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	// Merge the item and the form data
-	if err := mergo.Merge(&item, model.Image{ImageForm: form}, mergo.WithOverride); err != nil {
-		Error(c, http.StatusInternalServerError, err) // 500
-	}
-
-	// Save it
-	if res := store.DB.Save(&item); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	// Load a new version with relations
-	if res := store.DB.First(&item); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
+	Update(c, func(f model.ImageForm) model.Image { return model.Image{ImageForm: f} })
 }
 
 // DeleteImage Remove an existing image
@@ -326,10 +257,11 @@ func DeleteImage(c *gin.Context) {
 	} else {
 		// Delete it
 		//remove the entire directory and all files in it
-		err = os.RemoveAll(item.Path)
-		if err != nil {
-			log.Fatal(err)
+		// This used to log.Fatal, killing the daemon because one image
+		// directory could not be removed.
+		if err := os.RemoveAll(item.Path); err != nil {
 			Error(c, http.StatusInternalServerError, err) // 500
+			return
 		}
 
 		// remove record from database

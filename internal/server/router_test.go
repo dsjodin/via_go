@@ -28,10 +28,10 @@ func newRouters(t *testing.T) (apiRouter, bootRouter *gin.Engine) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	user := model.User{UserForm: model.UserForm{
-		Username: "admin",
+	user := model.User{
+		UserForm: model.UserForm{Username: "admin"},
 		Password: api.HashAndSalt([]byte("VMware1!")),
-	}}
+	}
 	if res := store.DB.Create(&user); res.Error != nil {
 		t.Fatalf("create user: %v", res.Error)
 	}

@@ -1,17 +1,17 @@
 package api
 
 import (
-	"errors"
-	"fmt"
-	"net/http"
-	"strconv"
-
 	"github.com/dsjodin/via_go/internal/model"
-	"github.com/dsjodin/via_go/internal/store"
 	"github.com/gin-gonic/gin"
-	"github.com/imdario/mergo"
-	"gorm.io/gorm"
 )
+
+// Device classes are plain persistence, so every handler delegates to the
+// generic implementations in crud.go. The functions exist to carry the swagger
+// annotations and to give the router something named to register.
+
+func newDeviceClass(f model.DeviceClassForm) model.DeviceClass {
+	return model.DeviceClass{DeviceClassForm: f}
+}
 
 // ListDeviceClasses Get a list of all device classes
 // @Summary Get all device classes
@@ -21,14 +21,7 @@ import (
 // @Success 200 {array} model.DeviceClass
 // @Failure 500 {object} model.APIError
 // @Router /device_classes [get]
-func ListDeviceClasses(c *gin.Context) {
-	var items []model.DeviceClass
-	if res := store.DB.Find(&items); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-	c.JSON(http.StatusOK, items) // 200
-}
+func ListDeviceClasses(c *gin.Context) { List[model.DeviceClass](c) }
 
 // GetDeviceClass Get an existing device class
 // @Summary Get an existing device class
@@ -41,26 +34,7 @@ func ListDeviceClasses(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /device_classes/{id} [get]
-func GetDeviceClass(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.DeviceClass
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func GetDeviceClass(c *gin.Context) { Get[model.DeviceClass](c) }
 
 // SearchDeviceClass Search for an device class
 // @Summary Search for an device class
@@ -73,33 +47,7 @@ func GetDeviceClass(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /device_classes/search [post]
-func SearchDeviceClass(c *gin.Context) {
-	form := make(map[string]interface{})
-
-	if err := c.ShouldBind(&form); err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	query := store.DB
-
-	for k, v := range form {
-		query = query.Where(k, v)
-	}
-
-	// Load the item
-	var item model.DeviceClass
-	if res := query.First(&item); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func SearchDeviceClass(c *gin.Context) { Search[model.DeviceClass](c) }
 
 // CreateDeviceClass Create a new device class
 // @Summary Create a new device class
@@ -111,23 +59,7 @@ func SearchDeviceClass(c *gin.Context) {
 // @Failure 400 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /device_classes [post]
-func CreateDeviceClass(c *gin.Context) {
-	var form model.DeviceClassForm
-
-	if err := c.ShouldBind(&form); err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	item := model.DeviceClass{DeviceClassForm: form}
-
-	if res := store.DB.Create(&item); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func CreateDeviceClass(c *gin.Context) { Create(c, newDeviceClass) }
 
 // UpdateDeviceClass Update an existing device class
 // @Summary Update an existing device class
@@ -141,44 +73,7 @@ func CreateDeviceClass(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /device_classes/{id} [patch]
-func UpdateDeviceClass(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the form data
-	var form model.DeviceClassForm
-	if err := c.ShouldBind(&form); err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.DeviceClass
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	// Merge the item and the form data
-	if err := mergo.Merge(&item, model.DeviceClass{DeviceClassForm: form}, mergo.WithOverride); err != nil {
-		Error(c, http.StatusInternalServerError, err) // 500
-	}
-
-	// Save it
-	if res := store.DB.Save(&item); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func UpdateDeviceClass(c *gin.Context) { Update(c, newDeviceClass) }
 
 // DeleteDeviceClass Remove an existing device class
 // @Summary Remove an existing device class
@@ -190,29 +85,4 @@ func UpdateDeviceClass(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /device_classes/{id} [delete]
-func DeleteDeviceClass(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.DeviceClass
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	// Save it
-	if res := store.DB.Delete(&item); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	c.JSON(http.StatusNoContent, gin.H{}) //204
-}
+func DeleteDeviceClass(c *gin.Context) { Delete[model.DeviceClass](c) }

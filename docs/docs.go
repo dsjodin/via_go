@@ -1033,7 +1033,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.UserForm"
+                            "$ref": "#/definitions/model.UserRequest"
                         }
                     }
                 ],
@@ -1221,7 +1221,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.UserForm"
+                            "$ref": "#/definitions/model.UserRequest"
                         }
                     }
                 ],
@@ -1587,9 +1587,6 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "password": {
-                    "type": "string"
-                },
                 "updated_at": {
                     "type": "string"
                 },
@@ -1598,7 +1595,7 @@ const docTemplate = `{
                 }
             }
         },
-        "model.UserForm": {
+        "model.UserRequest": {
             "type": "object",
             "properties": {
                 "comment": {

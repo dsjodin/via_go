@@ -26,15 +26,7 @@ import (
 // @Success 200 {array} model.Host
 // @Failure 500 {object} model.APIError
 // @Router /hosts [get]
-func ListHosts(c *gin.Context) {
-	var items []model.Host
-	if res := store.DB.Preload("Group").Find(&items); res.Error != nil {
-
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-	c.JSON(http.StatusOK, items) // 200
-}
+func ListHosts(c *gin.Context) { List[model.Host](c) }
 
 // GetHost Get an existing Host
 // @Summary Get an existing Host
@@ -47,26 +39,7 @@ func ListHosts(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /hosts/{id} [get]
-func GetHost(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.Host
-	if res := store.DB.Preload("Group").First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func GetHost(c *gin.Context) { Get[model.Host](c) }
 
 // SearchHost Search for an host
 // @Summary Search for an host
@@ -79,33 +52,7 @@ func GetHost(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /hosts/search [post]
-func SearchHost(c *gin.Context) {
-	form := make(map[string]interface{})
-
-	if err := c.ShouldBind(&form); err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	query := store.DB
-
-	for k, v := range form {
-		query = query.Where(k, v)
-	}
-
-	// Load the item
-	var item model.Host
-	if res := query.First(&item); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func SearchHost(c *gin.Context) { Search[model.Host](c) }
 
 // CreateHost Create a new host
 // @Summary Create a new host
@@ -271,29 +218,4 @@ func UpdateHost(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /hosts/{id} [delete]
-func DeleteHost(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.Host
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	// delete it
-	if res := store.DB.Delete(&item); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	c.JSON(http.StatusNoContent, gin.H{}) //204
-}
+func DeleteHost(c *gin.Context) { Delete[model.Host](c) }

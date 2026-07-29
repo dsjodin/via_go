@@ -221,14 +221,12 @@ definitions:
         type: string
       id:
         type: integer
-      password:
-        type: string
       updated_at:
         type: string
       username:
         type: string
     type: object
-  model.UserForm:
+  model.UserRequest:
     properties:
       comment:
         type: string
@@ -908,7 +906,7 @@ paths:
         name: item
         required: true
         schema:
-          $ref: '#/definitions/model.UserForm'
+          $ref: '#/definitions/model.UserRequest'
       produces:
       - application/json
       responses:
@@ -998,7 +996,7 @@ paths:
         name: item
         required: true
         schema:
-          $ref: '#/definitions/model.UserForm'
+          $ref: '#/definitions/model.UserRequest'
       produces:
       - application/json
       responses:

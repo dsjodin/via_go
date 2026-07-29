@@ -1026,7 +1026,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.UserForm"
+                            "$ref": "#/definitions/model.UserRequest"
                         }
                     }
                 ],
@@ -1214,7 +1214,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.UserForm"
+                            "$ref": "#/definitions/model.UserRequest"
                         }
                     }
                 ],
@@ -1580,9 +1580,6 @@
                 "id": {
                     "type": "integer"
                 },
-                "password": {
-                    "type": "string"
-                },
                 "updated_at": {
                     "type": "string"
                 },
@@ -1591,7 +1588,7 @@
                 }
             }
         },
-        "model.UserForm": {
+        "model.UserRequest": {
             "type": "object",
             "properties": {
                 "comment": {

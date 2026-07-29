@@ -65,7 +65,7 @@ func main() {
 	//create admin user if it doesn't exist
 	var adm model.User
 	hp := api.HashAndSalt([]byte("VMware1!"))
-	if res := store.DB.Where(model.User{UserForm: model.UserForm{Username: "admin"}}).Attrs(model.User{UserForm: model.UserForm{Password: hp}}).FirstOrCreate(&adm); res.Error != nil {
+	if res := store.DB.Where(model.User{UserForm: model.UserForm{Username: "admin"}}).Attrs(model.User{Password: hp}).FirstOrCreate(&adm); res.Error != nil {
 		logrus.Warning(res.Error)
 	}
 

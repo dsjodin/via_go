@@ -1,10 +1,7 @@
 package api
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/dsjodin/via_go/internal/model"
 	"github.com/dsjodin/via_go/internal/store"
@@ -12,8 +9,11 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
+
+// Reads and deletes are plain persistence; create and update are not, because
+// the password has to be hashed on the way in and must not be touched when a
+// request does not carry one.
 
 // ListUsers Get a list of all users
 // @Summary Get all users
@@ -23,14 +23,7 @@ import (
 // @Success 200 {array} model.User
 // @Failure 500 {object} model.APIError
 // @Router /users [get]
-func ListUsers(c *gin.Context) {
-	var items []model.User
-	if res := store.DB.Find(&items); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-	c.JSON(http.StatusOK, items) // 200
-}
+func ListUsers(c *gin.Context) { List[model.User](c) }
 
 // GetUser Get an existing user
 // @Summary Get an existing user
@@ -43,26 +36,7 @@ func ListUsers(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /users/{id} [get]
-func GetUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.User
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+func GetUser(c *gin.Context) { Get[model.User](c) }
 
 // SearchUser Search for a user
 // @Summary Search for a user
@@ -75,57 +49,42 @@ func GetUser(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /users/search [post]
-func SearchUser(c *gin.Context) {
-	form := make(map[string]interface{})
+func SearchUser(c *gin.Context) { Search[model.User](c) }
 
-	if err := c.ShouldBind(&form); err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	query := store.DB
-
-	for k, v := range form {
-		query = query.Where(k, v)
-	}
-
-	// Load the item
-	var item model.User
-	if res := query.First(&item); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, item) // 200
-}
+// DeleteUser Remove an existing user
+// @Summary Remove an existing user
+// @Tags users
+// @Accept  json
+// @Produce  json
+// @Param  id path int true "User ID"
+// @Success 204
+// @Failure 404 {object} model.APIError
+// @Failure 500 {object} model.APIError
+// @Router /users/{id} [delete]
+func DeleteUser(c *gin.Context) { Delete[model.User](c) }
 
 // CreateUser Create a new user
 // @Summary Create a new user
 // @Tags users
 // @Accept  json
 // @Produce  json
-// @Param item body model.UserForm true "Add an user"
+// @Param item body model.UserRequest true "Add an user"
 // @Success 200 {object} model.User
 // @Failure 400 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /users [post]
 func CreateUser(c *gin.Context) {
-	var form model.UserForm
-
+	var form model.UserRequest
 	if err := c.ShouldBind(&form); err != nil {
 		Error(c, http.StatusBadRequest, err) // 400
 		return
 	}
 
-	item := model.User{UserForm: form}
+	item := model.User{
+		UserForm: form.UserForm,
+		Password: HashAndSalt([]byte(form.Password)),
+	}
 
-	// hash and salt the plaintext password
-	hp := HashAndSalt([]byte(item.Password))
-	item.Password = hp
 	if res := store.DB.Create(&item); res.Error != nil {
 		Error(c, http.StatusInternalServerError, res.Error) // 500
 		return
@@ -140,47 +99,43 @@ func CreateUser(c *gin.Context) {
 // @Accept  json
 // @Produce  json
 // @Param  id path int true "User ID"
-// @Param  item body model.UserForm true "Update a user"
+// @Param  item body model.UserRequest true "Update a user"
 // @Success 200 {object} model.User
 // @Failure 400 {object} model.APIError
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /users/{id} [patch]
 func UpdateUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
+	id, ok := pathID(c)
+	if !ok {
 		return
 	}
 
-	// Load the form data
-	var form model.UserForm
+	var form model.UserRequest
 	if err := c.ShouldBind(&form); err != nil {
 		Error(c, http.StatusBadRequest, err) // 400
 		return
 	}
 
-	// Load the item
-	var item model.User
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
+	item, ok := load[model.User](c, id)
+	if !ok {
 		return
 	}
 
-	// Merge the item and the form data
-	if err := mergo.Merge(&item, model.User{UserForm: form}, mergo.WithOverride); err != nil {
+	if err := mergo.Merge(&item, model.User{UserForm: form.UserForm}, mergo.WithOverride); err != nil {
 		Error(c, http.StatusInternalServerError, err) // 500
+		return
 	}
 
-	// hash and salt the plaintext password
-	hp := HashAndSalt([]byte(item.Password))
-	item.Password = hp
+	// Only hash when a new password was actually supplied. This used to hash
+	// item.Password unconditionally, which on a request that did not carry one
+	// meant re-hashing the stored bcrypt hash — quietly destroying the
+	// password. Changing the admin account's email locked you out of the
+	// appliance.
+	if form.Password != "" {
+		item.Password = HashAndSalt([]byte(form.Password))
+	}
 
-	// Save it
 	if res := store.DB.Save(&item); res.Error != nil {
 		Error(c, http.StatusInternalServerError, res.Error) // 500
 		return
@@ -188,45 +143,6 @@ func UpdateUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, item) // 200
 }
-
-// DeleteUser Remove an existing user
-// @Summary Remove an existing user
-// @Tags users
-// @Accept  json
-// @Produce  json
-// @Param  id path int true "User ID"
-// @Success 204
-// @Failure 404 {object} model.APIError
-// @Failure 500 {object} model.APIError
-// @Router /users/{id} [delete]
-func DeleteUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		Error(c, http.StatusBadRequest, err) // 400
-		return
-	}
-
-	// Load the item
-	var item model.User
-	if res := store.DB.First(&item, id); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
-		} else {
-			Error(c, http.StatusInternalServerError, res.Error) // 500
-		}
-		return
-	}
-
-	// Save it
-	if res := store.DB.Delete(&item); res.Error != nil {
-		Error(c, http.StatusInternalServerError, res.Error) // 500
-		return
-	}
-
-	c.JSON(http.StatusNoContent, gin.H{}) //204
-}
-
-// functions to hash and compare passwords
 
 func HashAndSalt(pwd []byte) string {
 	// Generate hashed and salted password
@@ -238,6 +154,7 @@ func HashAndSalt(pwd []byte) string {
 	}
 	return string(hash)
 }
+
 func ComparePasswords(hashedPwd string, plainPwd []byte, username string) bool {
 	// compare a password to the hashed and salted value
 	byteHash := []byte(hashedPwd)
