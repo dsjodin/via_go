@@ -22,6 +22,10 @@ import (
 	_ "github.com/dsjodin/via_go/docs"
 )
 
+// defaultPassword is what the admin account is seeded with on a fresh
+// database. It is documented, so it is only ever a starting point.
+const defaultPassword = "VMware1!"
+
 var (
 	version = "dev"
 	commit  = "none"
@@ -64,9 +68,22 @@ func main() {
 
 	//create admin user if it doesn't exist
 	var adm model.User
-	hp := api.HashAndSalt([]byte("VMware1!"))
-	if res := store.DB.Where(model.User{UserForm: model.UserForm{Username: "admin"}}).Attrs(model.User{Password: hp}).FirstOrCreate(&adm); res.Error != nil {
+	hp := api.HashAndSalt([]byte(defaultPassword))
+	if res := store.DB.
+		Where(model.User{UserForm: model.UserForm{Username: "admin"}}).
+		Attrs(model.User{Password: hp, MustChangePassword: true}).
+		FirstOrCreate(&adm); res.Error != nil {
 		logrus.Warning(res.Error)
+	}
+
+	// This appliance stores and hands out ESXi root passwords, so an account
+	// still on the documented default is worth saying out loud on every start,
+	// not only in the UI.
+	if adm.MustChangePassword {
+		logrus.WithFields(logrus.Fields{
+			"username": adm.Username,
+			"password": defaultPassword,
+		}).Warn("auth: the admin account is still using the default password, change it")
 	}
 
 	// load secrets key

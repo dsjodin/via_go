@@ -1,5 +1,25 @@
 basePath: /v1
 definitions:
+  api.SessionResponse:
+    properties:
+      must_change_password:
+        description: |-
+          MustChangePassword tells the UI to force a password change before
+          letting the operator do anything else.
+        type: boolean
+      username:
+        type: string
+    type: object
+  api.loginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
   model.APIError:
     properties:
       error_message:
@@ -221,6 +241,12 @@ definitions:
         type: string
       id:
         type: integer
+      must_change_password:
+        description: |-
+          MustChangePassword marks an account still carrying the credential it
+          was seeded with. go-via hands out ESXi root passwords, so shipping a
+          documented default is worth surfacing until it is replaced.
+        type: boolean
       updated_at:
         type: string
       username:
@@ -877,6 +903,65 @@ paths:
       summary: Update an existing image
       tags:
       - images
+  /login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Credentials
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/api.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIError'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/model.APIError'
+      summary: Log in and receive a session cookie
+      tags:
+      - auth
+  /logout:
+    post:
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Log out
+      tags:
+      - auth
+  /session:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SessionResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIError'
+      summary: Describe the current session
+      tags:
+      - auth
   /users:
     get:
       consumes:

@@ -5,19 +5,30 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/dsjodin/via_go/internal/auth"
 
 	"github.com/dsjodin/via_go/internal/model"
 	"github.com/dsjodin/via_go/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
+func testAuth() *Auth {
+	return &Auth{
+		Sessions: auth.NewSessions(time.Hour),
+		Throttle: auth.NewThrottle(10, time.Minute),
+	}
+}
+
 func userRouter() *gin.Engine {
+	a := testAuth()
 	r := gin.New()
 	r.GET("/v1/users", ListUsers)
 	r.GET("/v1/users/:id", GetUser)
 	r.POST("/v1/users/search", SearchUser)
-	r.POST("/v1/users", CreateUser)
-	r.PATCH("/v1/users/:id", UpdateUser)
+	r.POST("/v1/users", a.CreateUser)
+	r.PATCH("/v1/users/:id", a.UpdateUser)
 	r.DELETE("/v1/users/:id", DeleteUser)
 	return r
 }

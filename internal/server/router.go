@@ -2,11 +2,11 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/dsjodin/via_go/internal/api"
+	"github.com/dsjodin/via_go/internal/auth"
 	"github.com/dsjodin/via_go/internal/config"
-	"github.com/dsjodin/via_go/internal/model"
-	"github.com/dsjodin/via_go/internal/store"
 	"github.com/dsjodin/via_go/internal/websockets"
 	"github.com/dsjodin/via_go/webui"
 	"github.com/gin-contrib/cors"
@@ -33,6 +33,10 @@ type Options struct {
 	// LogServer streams the log to the UI over a websocket.
 	LogServer *websockets.LogServer
 
+	// Auth holds the session store and login throttle. NewRouters creates one
+	// if it is nil.
+	Auth *api.Auth
+
 	Version Version
 }
 
@@ -42,16 +46,22 @@ type Options struct {
 // host doing UEFI HTTP boot has no credentials, so the boot files are served
 // over plain HTTP on :80, while the API and UI stay behind TLS and
 // authentication on the configured port.
-func NewRouters(opts Options) (api *gin.Engine, boot *gin.Engine, err error) {
+func NewRouters(opts Options) (apiRouter *gin.Engine, bootRouter *gin.Engine, err error) {
+	if opts.Auth == nil {
+		opts.Auth = &api.Auth{
+			Sessions: auth.NewSessions(auth.DefaultTTL),
+			Throttle: auth.NewThrottle(10, 15*time.Minute),
+			// The API listens on TLS, so the session cookie is TLS only.
+			Secure: true,
+		}
+	}
+
 	uiFS, err := webui.FS()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	apiRouter := newAPIRouter(opts, http.FileServer(http.FS(uiFS)))
-	bootRouter := newBootRouter(opts)
-
-	return apiRouter, bootRouter, nil
+	return newAPIRouter(opts, http.FileServer(http.FS(uiFS))), newBootRouter(opts), nil
 }
 
 // newBootRouter serves only the ESXi boot files, unauthenticated, for clients
@@ -73,13 +83,16 @@ func newAPIRouter(opts Options, uiServer http.Handler) *gin.Engine {
 	// it has no credentials either. It is authorised by source address.
 	r.GET("ks.cfg", api.Ks(opts.SecretKey))
 
+	// Logging in cannot itself require being logged in.
+	r.POST("/v1/login", opts.Auth.Login)
+
 	r.Use(logStaticFileRequests())
 
 	// The same boot files are also reachable over HTTPS, for hosts configured
 	// to boot that way.
 	r.GET("/esx/*filepath", Files(opts.Config))
 
-	r.Use(basicAuth())
+	r.Use(opts.Auth.Middleware())
 
 	r.NoRoute(func(c *gin.Context) {
 		// Always return index.html rather than the requested path, so the
@@ -144,8 +157,8 @@ func registerV1(r *gin.Engine, opts Options) {
 	{
 		users.GET("", api.ListUsers)
 		users.GET(":id", api.GetUser)
-		users.POST("", api.CreateUser)
-		users.PATCH(":id", api.UpdateUser)
+		users.POST("", opts.Auth.CreateUser)
+		users.PATCH(":id", opts.Auth.UpdateUser)
 		users.DELETE(":id", api.DeleteUser)
 	}
 
@@ -159,6 +172,9 @@ func registerV1(r *gin.Engine, opts Options) {
 		v1.GET("log", opts.LogServer.Handle)
 	}
 
+	v1.POST("logout", opts.Auth.Logout)
+	v1.GET("session", opts.Auth.Session)
+
 	v1.GET("version", api.Version(opts.Version.Version, opts.Version.Commit, opts.Version.Date))
 }
 
@@ -171,45 +187,6 @@ func logStaticFileRequests() gin.HandlerFunc {
 				"ip":     c.ClientIP(),
 			}).Info("static_file_request")
 		}
-		c.Next()
-	}
-}
-
-func basicAuth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		username, password, hasAuth := c.Request.BasicAuth()
-		if !hasAuth {
-			logrus.WithFields(logrus.Fields{
-				"login": "unauthorized request",
-			}).Info("auth")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		var user model.User
-		if res := store.DB.Select("username", "password").Where("username = ?", username).First(&user); res.Error != nil {
-			logrus.WithFields(logrus.Fields{
-				"username": username,
-				"status":   "supplied username does not exist",
-			}).Info("auth")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		if !api.ComparePasswords(user.Password, []byte(password), username) {
-			logrus.WithFields(logrus.Fields{
-				"username": username,
-				"status":   "invalid password supplied",
-			}).Info("auth")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		logrus.WithFields(logrus.Fields{
-			"username": username,
-			"status":   "successfully authenticated",
-		}).Debug("auth")
-
 		c.Next()
 	}
 }

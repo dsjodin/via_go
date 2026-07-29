@@ -31,6 +31,11 @@ type User struct {
 	// Password is stored as a bcrypt hash.
 	Password string `json:"-" gorm:"type:varchar(255)"`
 
+	// MustChangePassword marks an account still carrying the credential it
+	// was seeded with. go-via hands out ESXi root passwords, so shipping a
+	// documented default is worth surfacing until it is replaced.
+	MustChangePassword bool `json:"must_change_password" gorm:"type:bool"`
+
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`

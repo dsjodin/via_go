@@ -73,7 +73,7 @@ func DeleteUser(c *gin.Context) { Delete[model.User](c) }
 // @Failure 400 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /users [post]
-func CreateUser(c *gin.Context) {
+func (a *Auth) CreateUser(c *gin.Context) {
 	var form model.UserRequest
 	if err := c.ShouldBind(&form); err != nil {
 		Error(c, http.StatusBadRequest, err) // 400
@@ -105,7 +105,7 @@ func CreateUser(c *gin.Context) {
 // @Failure 404 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /users/{id} [patch]
-func UpdateUser(c *gin.Context) {
+func (a *Auth) UpdateUser(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
 		return
@@ -134,6 +134,13 @@ func UpdateUser(c *gin.Context) {
 	// appliance.
 	if form.Password != "" {
 		item.Password = HashAndSalt([]byte(form.Password))
+
+		// The account is no longer on a credential it was handed.
+		item.MustChangePassword = false
+
+		// Sessions opened with the old password must not outlive it — that is
+		// half the point of being able to change it.
+		a.Sessions.DestroyUser(item.Username)
 	}
 
 	if res := store.DB.Save(&item); res.Error != nil {
