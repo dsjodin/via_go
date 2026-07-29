@@ -265,34 +265,69 @@ Still to do:
   fixtures, so it is the one piece not yet covered.
 - The rest of the `api` package — handlers for hosts, groups, images, users.
 
-### Phase 2 — finish what `dev` started
+### Phase 2 — restructure and finish `dev` — **done**
 
-- Wire `ui/` into the binary via `go:embed` and delete the Angular remnants.
-  The Next.js scaffold needs the actual screens: hosts, groups, images, live log,
-  progress. This is the largest single chunk of work in the roadmap.
-- Real authentication: session cookies or JWT, bcrypt already in place, plus
-  rate limiting and forced change of the default `admin`/`VMware1!` on first
-  login. Basic-auth-per-request is not viable for a browser SPA anyway.
-- Decide the pools question. Static-reservation-only (dev's direction) is simpler
-  and safer for an imaging appliance; dynamic pools are what the existing users
-  have configured. If you drop pools, ship a migration.
-- Re-enable `postconfig`, or replace it with something better — the VCF-prereq
-  automation is the project's differentiator and it's currently dark.
+Module renamed to `github.com/dsjodin/via_go` with a `NOTICE` recording the fork
+origin; layout moved to `cmd/` and `internal/`.
 
-### Phase 3 — improvements neither repo has
+Three duplicated implementations were found and collapsed, one of which had
+already drifted:
+
+| Extracted to | Was duplicated in | State when found |
+|---|---|---|
+| `internal/boot` | `tftpd.go` and `uefi/uefi.go` | **Diverged** — the `cdromBoot` fix existed only in the HTTP copy, so PXE-booted hosts got a worse kernel command line |
+| `internal/netutil` | `api/hosts.go` and `dhcpd/dhcpd.go` | Byte-identical, caught before drifting |
+| `internal/api/crud.go` | five handler files | Byte-identical apart from the model type |
+
+Also done: `NoPWGroup` deleted and the group password leak closed; the CRUD layer
+collapsed onto a generic core with thin annotated wrappers so the OpenAPI spec
+still generates; session auth added alongside basic auth; the UI built.
+
+The pools question was settled by *not* re-introducing a network entity. The
+upstream author removed pools deliberately, so `Group` keeps `Netmask`,
+`Gateway` and `Device`. No schema migration was needed anywhere in this work.
+
+Post-configuration turned out not to need restoring. It had been *moved*, not
+disabled — NTP, syslog, SSH, the FQDN and the TLS certificate are configured by
+the host in the kickstart's `%firstboot`, and every govmomi call left in
+`ProvisioningWorker` sat inside a comment block. What was missing was the signal
+that starts it: nothing ever called `/v1/postconfig`, so a host that installed
+perfectly sat at 50% forever and `CallbackURL` never fired for anyone. The
+kickstart now reports in, and govmomi is gone.
+
+Bugs found and fixed across Phases 0–2, each caught by a test written against
+the old code first:
+
+| Where | Bug |
+|---|---|
+| `dhcpd` | `AddOptions` **panicked** on a group with a valid netmask and blank gateway, on the DHCP goroutine — taking down the daemon |
+| `dhcpd` | REQUEST ACKed **any** address the client asked for, never comparing it to the reservation |
+| `dhcpd` | Empty `if` body meant a failed group lookup silently emitted no option 67, so the host never booted |
+| `api` | **SQL injection**: search passed request JSON keys straight into `Where` as condition strings |
+| `api` | `UpdateUser` re-hashed the stored bcrypt hash, destroying the password — changing the admin email locked you out |
+| `api` | Create and update echoed the stored group password back in the response |
+| `api` | Every user endpoint returned the bcrypt hash |
+| `api` | `log.Fatal` in four handlers killed the daemon on an upload or rmdir error |
+| `models` | Subnet/broadcast options encoded as 16 bytes instead of the 4 RFC 2132 defines |
+| `secrets` | `Decrypt` panicked on an empty stored password |
+| `crypto` | `pem.Encode` errors dropped when writing the CA cert and keys |
+| release | Go 1.15 against a Go 1.25 module; binary silently renamed; no ldflags, so every release reported version `dev` |
+| `ui` | `lucide-react` imported but absent from `package.json` — the frontend did not build at all |
+
+### Phase 3 — improvements neither repo has — not started
 
 - **One-shot tokens for `ks.cfg`.** Put a nonce in the boot.cfg kernelopt URL,
   bind it to the host + a short TTL, burn it on use. Removes the "root password
   to anyone on the VLAN" exposure.
 - **Postgres/MySQL support** alongside SQLite. GORM makes this cheap and it
-  unblocks HA. Note `api/pools.go` uses `NOW()` in raw SQL, which is not SQLite
-  — that bug is already there and would be fixed by testing on both.
-- **Structured OpenAPI.** The swagger docs are generated but stale; regenerate in
-  CI and fail on drift. Then a Terraform provider or Ansible module becomes easy —
-  and the commit log shows the author already restructured the bootdisk model
-  "due to terraform", so there's demand.
+  unblocks HA.
+- **Fail CI on OpenAPI drift.** The spec is regenerated and current, and `swag`
+  is pinned as a go.mod tool, but nothing checks that a handler change was
+  followed by a regenerate.
 - **Modern ESXi 8/9 validation.** The kickstart and boot.cfg logic dates from the
-  6.7/7.0 era. Verify against current builds and add version-aware handling.
+  6.7/7.0 era. Verify against current builds and add version-aware handling. The
+  completion callback added in Phase 2 uses busybox `wget` and has not been run
+  against a real host either.
 - **Prometheus metrics + healthz.** Deployments per hour, failures, DHCP packets
   seen, current in-flight installs.
 - **IPv6 / DHCPv6**, and BIOS PXE for old hardware — both listed as never-supported
