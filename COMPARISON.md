@@ -227,22 +227,43 @@ Known gap this surfaced: **DHCP DECLINE is not handled.** The old
 implementation depended on pools and cannot be restored as-is; it needs
 rewriting against the host reservation model.
 
-### Phase 1 — tests — next
+### Phase 1 — tests — **mostly done**
 
-Phase 0 added the first tests this project has ever had (`secrets`, `webui`),
-but coverage is still near zero. This is the highest-leverage work remaining.
-In rough priority:
+| package | coverage |
+|---|---|
+| `webui` | 100% |
+| `secrets` | 80% |
+| `models` | 78% |
+| `dhcpd` | 56% |
+| `api` | 6% (kickstart only) |
 
-- `models.Option.ToDHCPOption()` — pure function, ~25 branches, trivially
-  table-testable, and encoding bugs here produce silent boot failures.
-- DHCP packet handling — feed captured DISCOVER/REQUEST/DECLINE frames through
-  `processPacket` and assert on the response. gopacket makes this straightforward
-  and no network is needed.
-- `ks.cfg` template rendering — golden-file tests per group-option combination.
+Done:
+
+- ✅ `models.Option.ToDHCPOption()` — every option type, signed time offsets,
+  the merge flag, malformed input, unsupported opcodes, `Level()` precedence.
+- ✅ `dhcpd` address helpers — `NetmaskToCIDR`, `NetworkAddress`,
+  `BroadcastAddress`, including non-contiguous masks. These were correct.
+- ✅ `dhcpd` option generation and packet handling — DISCOVER/REQUEST/dispatch,
+  boot method to option 67, header construction and broadcast-vs-unicast.
+- ✅ `ks.cfg` rendering — networking, group options, boot disk, VLAN, syslog,
+  both override paths, the reimage flag, and the password round trip. Correct
+  as written; no defects found.
+
+Four more real bugs surfaced, all found by a test written before the fix:
+
+| Where | Bug |
+|---|---|
+| `models` | Subnet mask, broadcast and solicit options encoded as **16 bytes** — `net.ParseIP`'s IPv4-in-IPv6 form — instead of the 4 RFC 2132 defines. |
+| `models` | An unparseable address returned a zero-length option and no error. |
+| `dhcpd` | `AddOptions` **panicked** on a group with a valid netmask and a blank gateway (`slice bounds out of range [:3] with capacity 0`), on the DHCP goroutine — taking down the daemon. |
+| `dhcpd` | REQUEST ACKed **any** address the client asked for, never comparing it to the reservation. The pool-based code checked this and NAK'd; the check was lost when pools were removed. |
+
+Still to do:
+
 - `boot.cfg` rewriting — the regex surgery in `uefi/uefi.go` is fragile and
-  ESXi-version-dependent; pin its behaviour per ISO layout.
-- `bootCfg`'s success-path error return (inherited from `go-via2`'s copy) is
-  exactly the class of bug a test would have caught.
+  ESXi-version-dependent; pin its behaviour per ISO layout. This needs ISO
+  fixtures, so it is the one piece not yet covered.
+- The rest of the `api` package — handlers for hosts, groups, images, users.
 
 ### Phase 2 — finish what `dev` started
 
