@@ -1,0 +1,31 @@
+services:
+  go-via:
+    build: .
+    restart: unless-stopped
+
+    # DHCP has to see broadcast traffic on the real interfaces, and the boot
+    # services bind privileged ports (67/udp, 69/udp, 80). Bridged networking
+    # cannot do either, so host networking is required rather than convenient.
+    network_mode: host
+
+    cap_add:
+      # AF_PACKET sockets for the DHCP server.
+      - NET_RAW
+      - NET_ADMIN
+      # Binding 67, 69 and 80.
+      - NET_BIND_SERVICE
+
+    volumes:
+      # The binary resolves these relative to its working directory (/app).
+      # Losing secret/ makes every stored ESXi password undecryptable, and
+      # losing database/ loses the host inventory, so both must be persisted.
+      - ./database:/app/database
+      - ./secret:/app/secret
+      - ./cert:/app/cert
+      # Uploaded and extracted ESXi images. Expect several GB per release.
+      - ./images:/app/images
+      - ./config:/app/config
+
+    # Without this go-via serves DHCP on every interface it can find. To limit
+    # it, put a config.json in ./config and uncomment the line below.
+    # command: ["-file", "/app/config/config.json"]

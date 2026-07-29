@@ -1,0 +1,20 @@
+# Keep the build context small and reproducible. Anything generated inside the
+# image must not be shadowed by a stale copy from the working tree.
+.git
+.github
+
+ui/node_modules
+ui/.next
+ui/out
+
+dist/
+
+# Runtime state, which belongs in the compose volumes rather than the image.
+database/
+secret/
+cert/
+images/
+iso/
+*.db
+
+go-via

@@ -89,3 +89,20 @@ jobs:
       - name: build
         working-directory: ui
         run: npm run build
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The image is never published, but it is a documented install route, so
+      # the build has to keep working. Nothing checked this before and the
+      # previous Dockerfile had rotted into something that could not be built
+      # on its own at all.
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

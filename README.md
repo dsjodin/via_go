@@ -36,7 +36,45 @@ port: 8443<br>
 
 Installation / Running
 ----------------------
-<h3> Option 1: Download the latest release, and run ./go-via -file config.json </h3>
+<h3> Option 1: docker compose </h3>
+
+This project does not publish container images, so compose builds one locally
+from the repository. Nothing is pulled from a registry.
+
+``` bash
+git clone https://github.com/dsjodin/via_go.git
+cd via_go
+sudo docker compose up -d --build
+```
+
+Host networking is required rather than merely convenient: the DHCP server has
+to see broadcast traffic on the real interfaces, and the boot services bind
+67/udp, 69/udp and 80.
+
+State lives in bind mounts next to the compose file:
+
+| directory | contents |
+|---|---|
+| `database/` | the SQLite database — the host inventory |
+| `secret/` | the AES key. **Lose this and every stored ESXi password becomes undecryptable.** |
+| `cert/` | the generated CA and server certificate |
+| `images/` | uploaded and extracted ESXi images, several GB per release |
+| `config/` | optional `config.json` |
+
+By default go-via serves DHCP on every interface it can find. To limit it, put a
+config file in `./config` and uncomment the `command:` line in
+`docker-compose.yml`.
+
+``` json
+{
+    "network": {
+        "interfaces": ["ens224", "ens192"]
+    },
+    "port": 443
+}
+```
+
+<h3> Option 2: Download the latest release, and run ./go-via -file config.json </h3>
 
 Most linux distributions should work, this has been tested on Ubuntu 20.20.
 
@@ -112,7 +150,7 @@ INFO[0000] cert                                          server.crt="server.crt 
 INFO[0000] Webserver                                     port=":8443"
 ```
 
-<h3> Option 2: Build from source </h3>
+<h3> Option 3: Build from source </h3>
 
 You need Go (the version is pinned in go.mod) and Node 22+ for the frontend.
 
