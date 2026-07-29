@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/http"
 	"os"
 	"strconv"
 
@@ -15,12 +14,7 @@ import (
 	"github.com/dsjodin/via_go/internal/store"
 	"github.com/dsjodin/via_go/internal/tftp"
 	"github.com/dsjodin/via_go/internal/websockets"
-	"github.com/dsjodin/via_go/webui"
 
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"github.com/sirupsen/logrus"
@@ -92,170 +86,16 @@ func main() {
 	// TFTPd
 	go tftp.Serve(conf)
 
-	//HTTPS REST API
-	https := gin.New()
-	https.Use(cors.Default())
-
-	//HTTP for boot only
-	efihttp := gin.New()
-	efihttp.Use(cors.Default())
-
-	uiFS, err := webui.FS()
+	// HTTP routers
+	https, efihttp, err := server.NewRouters(server.Options{
+		Config:    conf,
+		SecretKey: key,
+		LogServer: logServer,
+		Version:   server.Version{Version: version, Commit: commit, Date: date},
+	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	uiServer := http.FileServer(http.FS(uiFS))
-
-	// ks.cfg is served at top to not place it behind BasicAuth
-	https.GET("ks.cfg", api.Ks(key))
-
-	// middleware to log static file requests over https
-	https.Use(func(c *gin.Context) {
-		if c.Request.URL.Path == "/esx.iso" {
-			logrus.WithFields(logrus.Fields{
-				"path":   c.Request.URL.Path,
-				"method": c.Request.Method,
-				"ip":     c.ClientIP(),
-			}).Info("static_file_request")
-		}
-		c.Next()
-	})
-
-	// middleware to log static file requests over http
-	efihttp.Use(func(c *gin.Context) {
-		if c.Request.URL.Path == "/esx.iso" {
-			logrus.WithFields(logrus.Fields{
-				"path":   c.Request.URL.Path,
-				"method": c.Request.Method,
-				"ip":     c.ClientIP(),
-			}).Info("static_file_request")
-		}
-		c.Next()
-	})
-
-	// uefi-https boot
-	https.GET("/esx/*filepath", server.Files(conf))
-
-	// uefi-http boot
-	efihttp.GET("/esx/*filepath", server.Files(conf))
-
-	// middleware to check if user is logged in
-	https.Use(func(c *gin.Context) {
-
-		// Check for basic auth
-		username, password, hasAuth := c.Request.BasicAuth()
-		if !hasAuth {
-			logrus.WithFields(logrus.Fields{
-				"login": "unauthorized request",
-			}).Info("auth")
-			//c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		//get the user that is trying to authenticate
-		var user model.User
-		if res := store.DB.Select("username", "password").Where("username = ?", username).First(&user); res.Error != nil {
-			logrus.WithFields(logrus.Fields{
-				"username": username,
-				"status":   "supplied username does not exist",
-			}).Info("auth")
-			//c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-
-		//check if passwords match
-		if api.ComparePasswords(user.Password, []byte(password), username) {
-			logrus.WithFields(logrus.Fields{
-				"username": username,
-				"status":   "successfully authenticated",
-			}).Debug("auth")
-		} else {
-			logrus.WithFields(logrus.Fields{
-				"username": username,
-				"status":   "invalid password supplied",
-			}).Info("auth")
-			//c.Writer.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-		c.Next()
-	})
-
-	https.NoRoute(func(c *gin.Context) {
-		c.Request.URL.Path = "/" // always return index.html rather than the requested page, to be compatible with HTML5 routing
-		uiServer.ServeHTTP(c.Writer, c.Request)
-	})
-
-	ui := https.Group("/")
-	{
-		ui.GET("/web/*all", gin.WrapH(http.StripPrefix("/web", uiServer)))
-		ui.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	}
-
-	v1 := https.Group("/v1")
-	{
-
-		hosts := v1.Group("/hosts")
-		{
-			hosts.GET("", api.ListHosts)
-			hosts.GET(":id", api.GetHost)
-			hosts.POST("/search", api.SearchHost)
-			hosts.POST("", api.CreateHost)
-			hosts.PATCH(":id", api.UpdateHost)
-			hosts.DELETE(":id", api.DeleteHost)
-		}
-
-		deviceClass := v1.Group("/device_classes")
-		{
-			deviceClass.GET("", api.ListDeviceClasses)
-			deviceClass.GET(":id", api.GetDeviceClass)
-			deviceClass.POST("/search", api.SearchDeviceClass)
-			deviceClass.POST("", api.CreateDeviceClass)
-			deviceClass.PATCH(":id", api.UpdateDeviceClass)
-			deviceClass.DELETE(":id", api.DeleteDeviceClass)
-		}
-
-		groups := v1.Group("/groups")
-		{
-			groups.GET("", api.ListGroups)
-			groups.GET(":id", api.GetGroup)
-			groups.POST("", api.CreateGroup(key))
-			groups.PATCH(":id", api.UpdateGroup(key))
-			groups.DELETE(":id", api.DeleteGroup)
-		}
-
-		images := v1.Group("/images")
-		{
-			images.GET("", api.ListImages)
-			images.GET(":id", api.GetImage)
-			images.POST("", api.CreateImage)
-			images.PATCH(":id", api.UpdateImage)
-			images.DELETE(":id", api.DeleteImage)
-		}
-
-		users := v1.Group("/users")
-		{
-			users.GET("", api.ListUsers)
-			users.GET(":id", api.GetUser)
-			users.POST("", api.CreateUser)
-			users.PATCH(":id", api.UpdateUser)
-			users.DELETE(":id", api.DeleteUser)
-		}
-
-		postconfig := v1.Group("/postconfig")
-		{
-			postconfig.GET("", api.PostConfig(key))
-			postconfig.GET(":id", api.PostConfigID(key))
-		}
-
-		v1.GET("log", logServer.Handle)
-
-		v1.GET("version", api.Version(version, commit, date))
-	}
-
-	/*	r.GET("postconfig", api.PostConfig) */
 
 	// check if ./cert/server.crt exists, if not we will create the folder, and initiate a new CA and a self-signed certificate
 	crt, err := os.Stat("./cert/server.crt")
