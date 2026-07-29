@@ -107,7 +107,27 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 		return nil, fmt.Errorf("ignored, unknown mac address")
 	}
 
-	resp.YourClientIP = requestedIP
+	// The host record is a reservation, so the only address this server will
+	// confirm is the one it holds. Acking whatever the client asked for would
+	// hand out an address that was never reserved — a stale lease carried over
+	// from another network, or simply a client claiming one.
+	reserved := net.ParseIP(host.IP)
+	if reserved == nil {
+		return nil, fmt.Errorf("host %d has an invalid ip address %q", host.ID, host.IP)
+	}
+
+	if !requestedIP.Equal(reserved) {
+		logrus.WithFields(logrus.Fields{
+			"client-mac": req.ClientHWAddr.String(),
+			"requested":  requestedIP.String(),
+			"reserved":   host.IP,
+		}).Warn("dhcp: client requested an address other than its reservation")
+
+		resp.Options = append(resp.Options, layers.NewDHCPOption(layers.DHCPOptMessageType, []byte{byte(layers.DHCPMsgTypeNak)}))
+		return resp, nil
+	}
+
+	resp.YourClientIP = reserved
 
 	resp.Options = append(resp.Options, layers.NewDHCPOption(layers.DHCPOptMessageType, []byte{byte(layers.DHCPMsgTypeAck)}))
 	if err := AddOptions(req, resp, host, ip); err != nil {
