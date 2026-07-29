@@ -32,7 +32,11 @@ Default username / password / port
 ----------------------
 username: admin <br>
 password: VMware1!<br>
-port: 8443<br>
+port: 443<br>
+
+The port is configurable — set `"port": 8443` in the config file if you would
+rather not take 443 on the host. Note that UEFI HTTP boot always listens on 80
+and is not configurable, because the boot ROM has no way to be told otherwise.
 
 The admin account is seeded with that password and flagged as needing a change.
 go-via warns about it on every start and the UI asks you to replace it at first
@@ -45,7 +49,7 @@ The UI logs in at `POST /v1/login` and receives an HttpOnly session cookie;
 basic auth on any endpoint, which is what the scripts in `example-scripts/` do:
 
 ``` bash
-curl --user admin:VMware1! --insecure https://localhost:8443/v1/hosts
+curl --user admin:VMware1! --insecure https://localhost:443/v1/hosts
 ```
 
 Repeated failures are throttled per account and source address, on both the
@@ -116,7 +120,7 @@ Multi interface, and custom port.
     "port": 443
 }
 ```
-Single interface, default port 8443
+Single interface, default port 443
 ``` json
 {
     "network": {
@@ -164,7 +168,7 @@ INFO[0000] Starting dhcp server                          int=ens224 ip=172.16.10
 INFO[0000] Starting dhcp server                          int=ens192 ip=192.168.1.173 mac="00:0c:29:91:cf:e1"
 INFO[0000] Starting dhcp server                          int=docker0 ip=172.17.0.1 mac="02:42:09:9f:04:4f"
 INFO[0000] cert                                          server.crt="server.crt found"
-INFO[0000] Webserver                                     port=":8443"
+INFO[0000] Webserver                                     port=":443"
 ```
 
 <h3> Option 3: Build from source </h3>

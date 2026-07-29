@@ -54,9 +54,9 @@ COPY --from=build /out/go-via /usr/local/bin/go-via
 # 67/udp   DHCP
 # 69/udp   TFTP
 # 80/tcp   UEFI HTTP boot
-# 8443/tcp API and UI
+# 443/tcp  API and UI
 #
 # Decorative under network_mode: host, but a record of what is listening.
-EXPOSE 67/udp 69/udp 80 8443
+EXPOSE 67/udp 69/udp 80 443
 
 ENTRYPOINT ["go-via"]
