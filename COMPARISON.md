@@ -297,8 +297,9 @@ Still to do:
   seen, current in-flight installs.
 - **IPv6 / DHCPv6**, and BIOS PXE for old hardware — both listed as never-supported
   in the README.
-- **Multi-arch container images** (the current Dockerfile is `FROM golang:1.16`
-  with a copied binary — should be a multi-stage build on distroless/alpine).
+- **Container images**, if ever wanted. This fork does not publish any; upstream
+  pushed to Docker Hub and the Dockerfile only existed to wrap goreleaser's
+  binary. GitHub Container Registry would need no extra account if that changes.
 
 ---
 

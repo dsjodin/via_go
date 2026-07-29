@@ -36,70 +36,7 @@ port: 8443<br>
 
 Installation / Running
 ----------------------
-<h3> Option 1: docker container </h3>
-To run this container on a ubuntu 21.04 server, do the following:<br>
-
-install docker-ce (https://docs.docker.com/engine/install/ubuntu/)
-``` bash
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-```
-
-install latest docker-compose,  
-``` bash
-sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/bin/docker-compose
-sudo chmod +x /usr/bin/docker-compose
-```
-
-Option A: create the following docker-compose.yaml file to not specify a config file (dhcpd will serve on all interfaces)
-``` yaml
-version: "3.9"
-services:
-  go-via:
-    image: dsjodin/go-via:latest
-    network_mode: host
-    volumes:
-      - ./tftp:/go/tftp
-      - ./database:/go/database
-      - ./config:/go/config
-      - ./cert:/go/cert
-      - ./secret:/go/secret
-
-```
-
-Option B: or create this docker-compose.yaml to specify a config file, and place config in ./config/config.json
-``` yaml
-version: "3.9"
-services:
-  go-via:
-    image: dsjodin/go-via:latest
-    network_mode: host
-    volumes:
-      - ./tftp:/go/tftp
-      - ./database:/go/database
-      - ./config:/go/config
-      - ./cert:/go/cert
-      - ./secret:/go/secret
-    command: -file /go/config/config.json
-
-```
-Example config file
-``` json
-{
-    "network": {
-        "interfaces": ["ens224", "ens192"]
-    },
-    "port": 443
-}
-```
-
-now start the container
-
-``` bash
-sudo docker-compose up -d
-```
-
-<h3> Option 2: Download the latest release, and run ./go-via -file config.json </h3>
+<h3> Option 1: Download the latest release, and run ./go-via -file config.json </h3>
 
 Most linux distributions should work, this has been tested on Ubuntu 20.20.
 
@@ -175,57 +112,48 @@ INFO[0000] cert                                          server.crt="server.crt 
 INFO[0000] Webserver                                     port=":8443"
 ```
 
-<h3> Option 3: Download source and compile with go 1.16 and Angular 11 </h3>
+<h3> Option 2: Build from source </h3>
 
-with Ubuntu 20.20 installed, do the following:
-install golang 1.16.x compiler
-``` bash
-sudo snap install go --classic
-```
-install npm
-``` bash
-sudo apt-get install npm
-```
-install angular-cli
-``` bash
-sudo npm install npm@latest -g
-sudo npm install -g @angular/cli
-```
-start two terminals:
+You need Go (the version is pinned in go.mod) and Node 22+ for the frontend.
 
-terminal 1:
 ``` bash
-mkdir ~/go
-cd ~/go
 git clone https://github.com/dsjodin/via_go.git
 cd via_go
-go run ./cmd/go-via
+
+# build the frontend and regenerate the API docs, then compile
+go generate ./...
+go build ./cmd/go-via
+
+sudo ./go-via -file config.json
 ```
 
-terminal 2:
+`go generate` builds the Next.js app in `ui/` and copies its static export into
+`webui/dist`, which is embedded into the binary. A placeholder page is committed
+so `go build` works on its own if you have no Node toolchain — the API and the
+DHCP, TFTP and boot services are unaffected, only the web UI is missing.
+
+To work on the frontend with hot reloading, run the backend and the Next.js dev
+server side by side:
+
 ``` bash
-cd ~/go-via/web
+# terminal 1
+sudo ./go-via -file config.json
+
+# terminal 2
+cd ui
 npm install
-# to only allow localhost access to gui:
-ng serve
-# to allow anyone access to gui:
-ng serve --host 0.0.0.0
+npm run dev
 ```
 
 Troubleshooting
 ---------------
 To troubleshoot, enable debugging.
 
-Option 1: Docker Container. Append -debug to command.
+Append -debug to the command.
 ``` bash
-command: -debug
+sudo ./go-via -debug
 or
-command: -file /go/config/config.json -debug
-```
-
-Option 2: Source or Binary. Append -debug to command
-``` bash
-./go-via -debug
+sudo ./go-via -file config.json -debug
 ```
 
 Known issues
