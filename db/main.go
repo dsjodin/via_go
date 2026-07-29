@@ -11,8 +11,11 @@ import (
 
 var DB *gorm.DB
 
-func Connect(debug bool) {
-
+// Open connects to the sqlite database at dsn and assigns it to DB.
+//
+// Connect is the normal entry point; this exists so tests can run against an
+// in-memory database without touching the filesystem.
+func Open(dsn string, debug bool) error {
 	c := &gorm.Config{
 		SkipDefaultTransaction:                   true,
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -21,6 +24,14 @@ func Connect(debug bool) {
 	if debug {
 		c.Logger = logger.Default.LogMode(logger.Info)
 	}
+
+	var err error
+	DB, err = gorm.Open(sqlite.Open(dsn), c)
+
+	return err
+}
+
+func Connect(debug bool) {
 
 	//check if database is present
 	if _, err := os.Stat("database/sqlite-database.db"); os.IsNotExist(err) {
@@ -42,10 +53,9 @@ func Connect(debug bool) {
 		logrus.Info("Existing database sqlite-database.db found")
 	}
 
-	var err error
-
-	DB, err = gorm.Open(sqlite.Open("database/sqlite-database.db"), c)
-	if err != nil {
-		logrus.Error("Failed to open the SQLite database.")
+	// Continuing here would leave DB nil and turn the first query into a nil
+	// pointer dereference somewhere unrelated.
+	if err := Open("database/sqlite-database.db", debug); err != nil {
+		logrus.Fatalf("Failed to open the SQLite database: %v", err)
 	}
 }

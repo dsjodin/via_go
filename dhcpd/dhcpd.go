@@ -117,6 +117,52 @@ func processRequest(req *layers.DHCPv4, sourceNet net.IP, ip net.IP) (*layers.DH
 	return resp, nil
 }
 
+// groupCIDR returns the group's netmask as a prefix length.
+//
+// The error is deliberately not swallowed: falling back to 0 would hand the
+// client a 0.0.0.0 subnet mask, which it reads as "the whole internet is on
+// link" and which costs it its default route.
+func groupCIDR(g models.Group, opCode byte) (int, error) {
+	cidr, err := NetmaskToCIDR(g.Netmask)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"opcode":  opCode,
+			"name":    layers.DHCPOpt(opCode).String(),
+			"netmask": g.Netmask,
+			"err":     err,
+		}).Warn("dhcp: group has no usable netmask, skipping option")
+		return 0, err
+	}
+	return cidr, nil
+}
+
+// groupGateway returns the group's gateway as a 4-byte address.
+func groupGateway(g models.Group, opCode byte) (net.IP, error) {
+	ip := net.ParseIP(strings.TrimSpace(g.Gateway))
+	if ip == nil {
+		err := fmt.Errorf("%q is not a valid ip address", g.Gateway)
+		logrus.WithFields(logrus.Fields{
+			"opcode":  opCode,
+			"name":    layers.DHCPOpt(opCode).String(),
+			"gateway": g.Gateway,
+		}).Warn("dhcp: group has no usable gateway, skipping option")
+		return nil, err
+	}
+
+	v4 := ip.To4()
+	if v4 == nil {
+		err := fmt.Errorf("%q is not an ipv4 address", g.Gateway)
+		logrus.WithFields(logrus.Fields{
+			"opcode":  opCode,
+			"name":    layers.DHCPOpt(opCode).String(),
+			"gateway": g.Gateway,
+		}).Warn("dhcp: group gateway is not ipv4, skipping option")
+		return nil, err
+	}
+
+	return v4, nil
+}
+
 // AddOptions will try to add all requested options and the manually specified ones to the response
 /* func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool models.PoolWithHosts, lease *models.Host, ip net.IP) error { */
 func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *models.Host, ip net.IP) error {
@@ -236,23 +282,41 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *models.Host, ip 
 				}).Info("dhcp")
 			}
 		case layers.DHCPOptSubnetMask:
-			cidrMask, _ := NetmaskToCIDR(h.Group.Netmask)
+			cidrMask, err := groupCIDR(h.Group, opCode)
+			if err != nil {
+				continue
+			}
 			resp.Options = append(resp.Options, layers.NewDHCPOption(code, net.CIDRMask(cidrMask, 32)))
 		case layers.DHCPOptClasslessStaticRoute:
-			cidrMask, _ := NetmaskToCIDR(h.Group.Netmask)
+			cidrMask, err := groupCIDR(h.Group, opCode)
+			if err != nil {
+				continue
+			}
+			gw, err := groupGateway(h.Group, opCode)
+			if err != nil {
+				continue
+			}
+
 			var b bytes.Buffer
 			b.Write([]byte{byte(cidrMask)})
 
 			// Only write the non-zero octets.
 			dstLen := (cidrMask + 7) / 8
-			b.Write(net.ParseIP(h.Group.Gateway).To4()[:dstLen])
+			b.Write(gw[:dstLen])
 
-			b.Write(net.ParseIP(h.Group.Gateway).To4())
+			b.Write(gw)
 			resp.Options = append(resp.Options, layers.NewDHCPOption(code, b.Bytes()))
 		case layers.DHCPOptRouter:
-			resp.Options = append(resp.Options, layers.NewDHCPOption(code, net.ParseIP(h.Group.Gateway).To4()))
+			gw, err := groupGateway(h.Group, opCode)
+			if err != nil {
+				continue
+			}
+			resp.Options = append(resp.Options, layers.NewDHCPOption(code, gw))
 		case layers.DHCPOptBroadcastAddr:
-			cidrMask, _ := NetmaskToCIDR(h.Group.Netmask)
+			cidrMask, err := groupCIDR(h.Group, opCode)
+			if err != nil {
+				continue
+			}
 			bcastStr, err := BroadcastAddress(h.Group.Gateway, strconv.Itoa(cidrMask))
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
