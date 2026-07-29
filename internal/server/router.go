@@ -78,28 +78,41 @@ func newBootRouter(opts Options) *gin.Engine {
 func newAPIRouter(opts Options, uiServer http.Handler) *gin.Engine {
 	r := gin.New()
 	r.Use(cors.Default())
+	r.Use(logStaticFileRequests())
 
-	// ks.cfg is registered before the auth middleware: the installer fetching
-	// it has no credentials either. It is authorised by source address.
+	// Authentication is applied to a group rather than with r.Use, because gin
+	// attaches every engine-level middleware to the NoRoute handler no matter
+	// where Use appears — registration order cannot exempt it. Scoping the
+	// middleware is the only way to keep the app shell reachable.
+
+	// --- unauthenticated, because the client has no credentials to offer ---
+
+	// The installer fetching its kickstart. Authorised by source address.
 	r.GET("ks.cfg", api.Ks(opts.SecretKey))
+
+	// A freshly installed host reporting completion at the end of its
+	// kickstart, likewise authorised by source address against a host record.
+	// The by-id form stays behind auth: that one is an operator re-running
+	// post-config by hand.
+	r.GET("/v1/postconfig", api.PostConfig(opts.SecretKey))
+
+	// The same boot files as the plain-HTTP router, for hosts configured to
+	// boot over HTTPS.
+	r.GET("/esx/*filepath", Files(opts.Config))
 
 	// Logging in cannot itself require being logged in.
 	r.POST("/v1/login", opts.Auth.Login)
 
-	// A freshly installed host reports completion here at the end of its
-	// kickstart. It has no credentials, so like ks.cfg this sits in front of
-	// the auth middleware and is authorised by source address against a host
-	// record instead. The by-id form below stays behind auth: that one is an
-	// operator re-running post-config by hand.
-	r.GET("/v1/postconfig", api.PostConfig(opts.SecretKey))
+	// --- unauthenticated, because the login screen lives here ---
+	//
+	// The UI is a static bundle and the login screen is part of it, so putting
+	// it behind the session it exists to create leaves a browser with a bare
+	// 401 and no way in. The bundle carries no data of its own; everything it
+	// displays comes from /v1, which is authenticated.
+	r.GET("/web/*all", gin.WrapH(http.StripPrefix("/web", uiServer)))
 
-	r.Use(logStaticFileRequests())
-
-	// The same boot files are also reachable over HTTPS, for hosts configured
-	// to boot that way.
-	r.GET("/esx/*filepath", Files(opts.Config))
-
-	r.Use(opts.Auth.Middleware())
+	// The bare address is what people type.
+	r.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/web/") })
 
 	r.NoRoute(func(c *gin.Context) {
 		// Always return index.html rather than the requested path, so the
@@ -108,18 +121,19 @@ func newAPIRouter(opts Options, uiServer http.Handler) *gin.Engine {
 		uiServer.ServeHTTP(c.Writer, c.Request)
 	})
 
-	ui := r.Group("/")
-	{
-		ui.GET("/web/*all", gin.WrapH(http.StripPrefix("/web", uiServer)))
-		ui.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	}
+	// --- authenticated ---
 
-	registerV1(r, opts)
+	authed := r.Group("/")
+	authed.Use(opts.Auth.Middleware())
+
+	authed.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	registerV1(authed, opts)
 
 	return r
 }
 
-func registerV1(r *gin.Engine, opts Options) {
+func registerV1(r gin.IRouter, opts Options) {
 	v1 := r.Group("/v1")
 
 	hosts := v1.Group("/hosts")

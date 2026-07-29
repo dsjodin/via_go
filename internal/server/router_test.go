@@ -167,3 +167,45 @@ func TestUIAndSwaggerAreServed(t *testing.T) {
 		t.Errorf("GET /swagger/index.html = %d, want 200", code)
 	}
 }
+
+// The login screen is part of the UI bundle, so the bundle cannot sit behind
+// the session it exists to create. Putting it there makes the whole product
+// unreachable: a browser gets a bare 401 and no way to log in.
+func TestUIIsReachableWithoutCredentials(t *testing.T) {
+	apiRouter, _ := newRouters(t)
+
+	for _, tc := range []struct {
+		name string
+		path string
+		want int
+	}{
+		{"entry point", "/", http.StatusFound},
+		{"app shell", "/web/", http.StatusOK},
+		{"deep link", "/hosts", http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if code := get(apiRouter, tc.path, false).Code; code != tc.want {
+				t.Errorf("GET %s without credentials = %d, want %d", tc.path, code, tc.want)
+			}
+		})
+	}
+
+	// The login route itself only exists in a real UI build; webui/dist holds a
+	// placeholder here. 404 is therefore fine, 401 is the regression.
+	t.Run("login screen", func(t *testing.T) {
+		if code := get(apiRouter, "/web/login/", false).Code; code == http.StatusUnauthorized {
+			t.Error("GET /web/login/ = 401; the login screen must not require a session")
+		}
+	})
+}
+
+// The entry point people actually type is the bare address. It must land on
+// the app rather than on whatever NoRoute happens to do.
+func TestRootRedirectsToTheUI(t *testing.T) {
+	apiRouter, _ := newRouters(t)
+
+	rec := get(apiRouter, "/", false)
+	if got := rec.Header().Get("Location"); got != "/web/" {
+		t.Errorf("GET / redirected to %q, want %q", got, "/web/")
+	}
+}
