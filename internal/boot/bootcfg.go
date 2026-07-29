@@ -39,7 +39,7 @@ type Params struct {
 	// AllowLegacyCPU permits install on CPUs the release has dropped support
 	// for. Both callers set this, matching --forceunsupportedinstall in the
 	// kickstart template; the group-level toggle that used to control it was
-	// removed from models.GroupOptions. It is a field rather than a constant
+	// removed from model.GroupOptions. It is a field rather than a constant
 	// so the decision is visible and reversible.
 	AllowLegacyCPU bool
 }

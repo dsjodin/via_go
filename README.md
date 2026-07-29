@@ -199,7 +199,7 @@ mkdir ~/go
 cd ~/go
 git clone https://github.com/dsjodin/via_go.git
 cd via_go
-go run *.go
+go run ./cmd/go-via
 ```
 
 terminal 2:

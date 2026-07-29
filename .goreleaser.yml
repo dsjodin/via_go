@@ -1,5 +1,9 @@
 version: 2
 
+# The repository is via_go but the binary, image and docs are all go-via.
+# Without this, goreleaser derives both from the module path.
+project_name: go-via
+
 # The frontend is built by `go generate ./...` in CI before goreleaser runs;
 # it needs a Node toolchain, so it is not a hook here.
 before:
@@ -8,6 +12,8 @@ before:
 
 builds:
   - id: go-via
+    main: ./cmd/go-via
+    binary: go-via
     env:
       # go-sqlite3 is cgo.
       - CGO_ENABLED=1
