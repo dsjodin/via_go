@@ -137,10 +137,9 @@ func Ks(key string) func(c *gin.Context) {
 
 		//cleanup data to allow easier custom templating
 		data := map[string]interface{}{
-			"password": decryptedPassword,
-			"ip":       item.IP,
-			"mac":      item.Mac,
-			//"gateway":    item.Pool.Gateway,
+			"password":   decryptedPassword,
+			"ip":         item.IP,
+			"mac":        item.Mac,
 			"gateway":    item.Group.Gateway,
 			"dns":        item.Group.DNS,
 			"ntp":        ntp,

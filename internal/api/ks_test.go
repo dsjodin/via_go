@@ -36,7 +36,9 @@ func seed(t *testing.T, group model.Group, host model.Host) *model.Host {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	encrypted, err := secrets.Encrypt(group.Password, testKey)
+	// Groups store the ESXi root password encrypted; seed it the same way the
+	// API does so the kickstart path exercises a real round trip.
+	encrypted, err := secrets.Encrypt("VMware1!", testKey)
 	if err != nil {
 		t.Fatalf("encrypt password: %v", err)
 	}
@@ -73,13 +75,12 @@ func render(t *testing.T, hostIP string) *httptest.ResponseRecorder {
 func defaultGroup() model.Group {
 	return model.Group{
 		GroupForm: model.GroupForm{
-			Name:     "test",
-			Netmask:  "255.255.255.0",
-			Gateway:  "192.168.1.1",
-			DNS:      "10.0.0.53",
-			NTP:      "10.0.0.123",
-			Password: "VMware1!",
-			Options:  datatypes.JSON(`{}`),
+			Name:    "test",
+			Netmask: "255.255.255.0",
+			Gateway: "192.168.1.1",
+			DNS:     "10.0.0.53",
+			NTP:     "10.0.0.123",
+			Options: datatypes.JSON(`{}`),
 		},
 	}
 }

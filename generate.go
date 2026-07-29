@@ -6,5 +6,5 @@
 // deliberately empty and is never imported.
 package tools
 
-//go:generate bash -c "go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/go-via/main.go -o docs"
+//go:generate bash -c "go tool swag init -g cmd/go-via/main.go -o docs"
 //go:generate bash -c "cd ui && npm ci && npm run build && cd .. && rm -rf webui/dist && cp -r ui/out webui/dist"

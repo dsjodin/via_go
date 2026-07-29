@@ -28,8 +28,7 @@ import (
 // @Failure 500 {object} model.APIError
 // @Router /groups [get]
 func ListGroups(c *gin.Context) {
-	var items []model.NoPWGroup
-	//if res := store.DB.Preload("Pool").Preload("Option").Find(&items); res.Error != nil {
+	var items []model.Group
 	if res := store.DB.Find(&items); res.Error != nil {
 		Error(c, http.StatusInternalServerError, res.Error) // 500
 		return
@@ -57,8 +56,7 @@ func GetGroup(c *gin.Context) {
 	}
 
 	// Load the item
-	var item model.NoPWGroup
-	//if res := store.DB.Preload("Pool").First(&item, id); res.Error != nil {
+	var item model.Group
 	if res := store.DB.First(&item, id); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
@@ -76,21 +74,21 @@ func GetGroup(c *gin.Context) {
 // @Tags groups
 // @Accept  json
 // @Produce  json
-// @Param item body model.GroupForm true "Add ip group"
+// @Param item body model.GroupRequest true "Add ip group"
 // @Success 200 {object} model.Group
 // @Failure 400 {object} model.APIError
 // @Failure 500 {object} model.APIError
 // @Router /groups [post]
 func CreateGroup(key string) func(c *gin.Context) {
 	return func(c *gin.Context) {
-		var form model.GroupForm
+		var form model.GroupRequest
 
 		if err := c.ShouldBind(&form); err != nil {
 			Error(c, http.StatusBadRequest, err) // 400
 			return
 		}
 
-		item := model.Group{GroupForm: form}
+		item := model.Group{GroupForm: form.GroupForm}
 
 		//remove whitespaces surrounding comma kickstart file breaks otherwise
 		item.DNS = strings.Join(strings.Fields(item.DNS), "")
@@ -102,7 +100,7 @@ func CreateGroup(key string) func(c *gin.Context) {
 			Error(c, http.StatusBadRequest, err) // 400
 			return
 		}
-		encrypted, err := secrets.Encrypt(item.Password, key)
+		encrypted, err := secrets.Encrypt(form.Password, key)
 		if err != nil {
 			Error(c, http.StatusInternalServerError, err) // 500
 			return
@@ -115,7 +113,6 @@ func CreateGroup(key string) func(c *gin.Context) {
 		}
 
 		// Load a new version with relations
-		//if res := store.DB.Preload("Pool").First(&item); res.Error != nil {
 		if res := store.DB.First(&item); res.Error != nil {
 			Error(c, http.StatusInternalServerError, res.Error) // 500
 			return
@@ -128,7 +125,6 @@ func CreateGroup(key string) func(c *gin.Context) {
 			"DNS":      item.DNS,
 			"NTP":      item.NTP,
 			"Image ID": item.ImageID,
-			//"Pool ID":  item.PoolID,
 		}).Debug("group")
 	}
 }
@@ -139,7 +135,7 @@ func CreateGroup(key string) func(c *gin.Context) {
 // @Accept  json
 // @Produce  json
 // @Param  id path int true "Group ID"
-// @Param  item body model.GroupForm true "Update an group"
+// @Param  item body model.GroupRequest true "Update an group"
 // @Success 200 {object} model.Group
 // @Failure 400 {object} model.APIError
 // @Failure 404 {object} model.APIError
@@ -154,7 +150,7 @@ func UpdateGroup(key string) func(c *gin.Context) {
 		}
 
 		// Load the form data
-		var form model.GroupForm
+		var form model.GroupRequest
 		if err := c.ShouldBind(&form); err != nil {
 			Error(c, http.StatusBadRequest, err) // 400
 			return
@@ -172,7 +168,7 @@ func UpdateGroup(key string) func(c *gin.Context) {
 		}
 
 		// Merge the item and the form data
-		if err := mergo.Merge(&item, model.Group{GroupForm: form}, mergo.WithOverride); err != nil {
+		if err := mergo.Merge(&item, model.Group{GroupForm: form.GroupForm}, mergo.WithOverride); err != nil {
 			Error(c, http.StatusInternalServerError, err) // 500
 		}
 
@@ -189,7 +185,7 @@ func UpdateGroup(key string) func(c *gin.Context) {
 				return
 			}
 
-			encrypted, err := secrets.Encrypt(item.Password, key)
+			encrypted, err := secrets.Encrypt(form.Password, key)
 			if err != nil {
 				Error(c, http.StatusInternalServerError, err) // 500
 				return
@@ -205,14 +201,12 @@ func UpdateGroup(key string) func(c *gin.Context) {
 		item.GroupForm.BootDisk = form.BootDisk
 
 		// Save it
-		//if res := store.DB.Preload("Pool").Save(&item); res.Error != nil {
 		if res := store.DB.Save(&item); res.Error != nil {
 			Error(c, http.StatusInternalServerError, res.Error) // 500
 			return
 		}
 
 		// Load a new version with relations
-		//if res := store.DB.Preload("Pool").First(&item); res.Error != nil {
 		if res := store.DB.First(&item); res.Error != nil {
 			Error(c, http.StatusInternalServerError, res.Error) // 500
 			return

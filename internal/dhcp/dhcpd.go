@@ -185,7 +185,6 @@ func groupGateway(g model.Group, opCode byte) (net.IP, error) {
 }
 
 // AddOptions will try to add all requested options and the manually specified ones to the response
-/* func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, pool model.PoolWithHosts, lease *model.Host, ip net.IP) error { */
 func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *model.Host, ip net.IP) error {
 
 	var options []model.Option
@@ -205,14 +204,8 @@ func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *model.Host, ip n
 			byOpCode[v.OpCode] = make([]model.Option, 0)
 		}
 
-		// Only add the highest level options to the list
-		// The level is decided on pool_id and host_id fields
-		// addess+device_class specific = 5
-		// pool+device_class specific = 4
-		// global+device_class = 3
-		// addess specific = 2
-		// pool specific = 1
-		// global = 0
+		// Only the most specific option for each opcode is kept; see
+		// model.Option.Level for the precedence.
 		if len(byOpCode[v.OpCode]) == 0 || v.Level() >= byOpCode[v.OpCode][0].Level() {
 			byOpCode[v.OpCode] = append(byOpCode[v.OpCode], v)
 		}
@@ -627,7 +620,6 @@ func findHostByMAC(mac string) (*model.Host, error) {
 	var host model.Host
 	res := store.DB.
 		Preload("Group").
-		//Preload("Pool").
 		Where("LOWER(mac) = ?", strings.ToLower(mac)).
 		First(&host)
 

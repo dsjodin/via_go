@@ -23,12 +23,11 @@ import (
 // @Tags hosts
 // @Accept  json
 // @Produce  json
-// @Success 200 {array} model.Address
+// @Success 200 {array} model.Host
 // @Failure 500 {object} model.APIError
 // @Router /hosts [get]
 func ListHosts(c *gin.Context) {
 	var items []model.Host
-	//if res := store.DB.Preload("Pool").Find(&items); res.Error != nil {
 	if res := store.DB.Preload("Group").Find(&items); res.Error != nil {
 
 		Error(c, http.StatusInternalServerError, res.Error) // 500
@@ -57,7 +56,6 @@ func GetHost(c *gin.Context) {
 
 	// Load the item
 	var item model.Host
-	//if res := store.DB.Preload("Pool").First(&item, id); res.Error != nil {
 	if res := store.DB.Preload("Group").First(&item, id); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
@@ -97,7 +95,6 @@ func SearchHost(c *gin.Context) {
 
 	// Load the item
 	var item model.Host
-	//if res := query.Preload("Pool").First(&item); res.Error != nil {
 	if res := query.First(&item); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			Error(c, http.StatusNotFound, fmt.Errorf("not found")) // 404
@@ -187,7 +184,6 @@ func CreateHost(c *gin.Context) {
 	}
 
 	// Load a new version with relations
-	//if res := store.DB.Preload("Pool").First(&item); res.Error != nil {
 	if res := store.DB.First(&item); res.Error != nil {
 		Error(c, http.StatusInternalServerError, res.Error) // 500
 		return
@@ -200,7 +196,6 @@ func CreateHost(c *gin.Context) {
 		"Domain":   item.Domain,
 		"IP":       item.IP,
 		"MAC":      item.Mac,
-		//"Pool ID":  item.PoolID,
 		"Group ID": item.GroupID,
 	}).Debug("host")
 }
@@ -258,7 +253,6 @@ func UpdateHost(c *gin.Context) {
 	}
 
 	// Load a new version with relations
-	//if res := store.DB.Preload("Pool").First(&item); res.Error != nil {
 	if res := store.DB.First(&item); res.Error != nil {
 		Error(c, http.StatusInternalServerError, res.Error) // 500
 		return

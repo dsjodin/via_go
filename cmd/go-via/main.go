@@ -57,7 +57,6 @@ func main() {
 	}
 
 	//migrate all models
-	//err := store.DB.AutoMigrate(&model.Pool{}, &model.Host{}, &model.Option{}, &model.DeviceClass{}, &model.Group{}, &model.Image{}, &model.User{})
 	err := store.DB.AutoMigrate(&model.Host{}, &model.Option{}, &model.DeviceClass{}, &model.Group{}, &model.Image{}, &model.User{})
 	if err != nil {
 		logrus.Fatal(err)
