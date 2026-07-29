@@ -17,6 +17,12 @@ COPY ui/ ./
 # next.config.mjs sets output: "export", so this produces a static ui/out.
 RUN npm run build
 
+# Hand the export over as a single file. Copying the directory across stages
+# exposes its contents to the .dockerignore patterns, and the app has a route
+# called /images, which collides with the images/ entry that keeps multi-gigabyte
+# ESXi ISOs out of the build context. The result was one silently missing page.
+RUN tar -cf /ui.tar -C out .
+
 # ---- backend --------------------------------------------------------------
 FROM golang:1.25-bookworm AS build
 
@@ -33,8 +39,17 @@ COPY . .
 
 # webui/dist holds a committed placeholder page so that `go build` works
 # without a Node toolchain. Replace it with the real export.
-RUN rm -rf webui/dist
-COPY --from=ui /src/ui/out ./webui/dist
+COPY --from=ui /ui.tar /tmp/ui.tar
+RUN rm -rf webui/dist && mkdir webui/dist && tar -xf /tmp/ui.tar -C webui/dist
+
+# Every route under ui/src/app must have come through. Without this the build
+# happily embeds an incomplete UI and the missing page only shows up as a 404
+# in production, long after the build that caused it.
+RUN for dir in ui/src/app/*/; do \
+        route=$(basename "$dir"); \
+        test -f "webui/dist/$route/index.html" \
+            || { echo "embedded UI is missing the $route page"; exit 1; }; \
+    done
 
 # -buildvcs stamps the commit from the .git in the context, so /v1/version
 # reports the build rather than "none". It is the default, but stated here
