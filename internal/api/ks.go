@@ -78,6 +78,14 @@ esxcli network vswitch standard portgroup set --vlan-id {{.vlan}}
 # Ensure TLS certificate matches ESXi FQDN
 /sbin/generate-certificates
 /etc/init.d/hostd restart && /etc/init.d/vpxa restart && /etc/init.d/rhttpproxy restart
+
+{{ if .via_server }}
+# Tell go-via the host is up. This is what moves it to 100% in the console and
+# fires the group's callback URL. It is the last thing to run and its failure
+# is swallowed: a host that installed correctly must not be reported as broken
+# because it could not reach the appliance afterwards.
+wget --no-check-certificate -O /dev/null https://{{ .via_server }}/v1/postconfig 2>/dev/null || true
+{{ end }}
 `
 
 func Ks(key string) func(c *gin.Context) {
@@ -100,10 +108,15 @@ func Ks(key string) func(c *gin.Context) {
 			return
 		}
 
-		laddrport, ok := c.Request.Context().Value(http.LocalAddrContextKey).(net.Addr)
-		if !ok {
+		// The address the host reached us on, which is the one it can reach us
+		// back on. If it cannot be determined the template leaves the callback
+		// out rather than emitting a broken URL.
+		viaServer := ""
+		if laddrport, ok := c.Request.Context().Value(http.LocalAddrContextKey).(net.Addr); ok && laddrport != nil {
+			viaServer = laddrport.String()
+		} else {
 			logrus.WithFields(logrus.Fields{
-				"interface": "could not determine the local interface used to apply to ks.cfgs postconfig callback",
+				"interface": "could not determine the local interface for the ks.cfg completion callback",
 			}).Debug("ks")
 		}
 
@@ -147,7 +160,7 @@ func Ks(key string) func(c *gin.Context) {
 			"domain":     item.Domain,
 			"fqdn":       item.Hostname + "." + item.Domain,
 			"netmask":    item.Group.Netmask,
-			"via_server": laddrport,
+			"via_server": viaServer,
 			"erasedisks": options.EraseDisks,
 			"ssh":        options.SSH,
 			"syslog":     item.Group.Syslog,

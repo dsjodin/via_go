@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -58,7 +60,23 @@ func seed(t *testing.T, group model.Group, host model.Host) *model.Host {
 }
 
 // render performs a ks.cfg request as if it came from the host's address.
+//
+// A real server puts the address the request arrived on into the context;
+// httptest does not, so it is set here. renderWithoutLocalAddr covers the case
+// where it genuinely is missing.
 func render(t *testing.T, hostIP string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	local := &net.TCPAddr{IP: net.IPv4(192, 168, 1, 2), Port: 8443}
+	return doKs(t, hostIP, local)
+}
+
+func renderWithoutLocalAddr(t *testing.T, hostIP string) *httptest.ResponseRecorder {
+	t.Helper()
+	return doKs(t, hostIP, nil)
+}
+
+func doKs(t *testing.T, hostIP string, local net.Addr) *httptest.ResponseRecorder {
 	t.Helper()
 
 	r := gin.New()
@@ -66,6 +84,9 @@ func render(t *testing.T, hostIP string) *httptest.ResponseRecorder {
 
 	req := httptest.NewRequest(http.MethodGet, "/ks.cfg", nil)
 	req.RemoteAddr = hostIP + ":54321"
+	if local != nil {
+		req = req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, local))
+	}
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -292,5 +313,40 @@ func TestKsRejectsUnknownRequester(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "VMware1!") {
 		t.Error("leaked the root password to an unknown address")
+	}
+}
+
+// Nothing used to call /v1/postconfig, so a host that installed correctly sat
+// at 50% in the console forever and the group's callback URL never fired.
+func TestKsReportsCompletion(t *testing.T) {
+	seed(t, defaultGroup(), defaultHost())
+
+	body := render(t, "192.168.1.50").Body.String()
+
+	if !strings.Contains(body, "/v1/postconfig") {
+		t.Errorf("kickstart does not report completion back to go-via\n---\n%s", body)
+	}
+	// Reporting in must never be able to fail an otherwise good install.
+	for _, guard := range []string{"|| true"} {
+		if !strings.Contains(body, guard) {
+			t.Errorf("the completion callback is not failure-tolerant (missing %q)", guard)
+		}
+	}
+}
+
+// When the address the request arrived on cannot be determined, the kickstart
+// must omit the callback rather than emit a URL pointing at nothing.
+func TestKsOmitsCompletionWithoutAServerAddress(t *testing.T) {
+	seed(t, defaultGroup(), defaultHost())
+
+	body := renderWithoutLocalAddr(t, "192.168.1.50").Body.String()
+
+	if strings.Contains(body, "/v1/postconfig") {
+		t.Errorf("kickstart emitted a callback with no server address\n---\n%s", body)
+	}
+
+	if strings.Contains(body, "https:///v1/postconfig") ||
+		strings.Contains(body, "<nil>") {
+		t.Errorf("kickstart emitted a broken callback URL\n---\n%s", body)
 	}
 }

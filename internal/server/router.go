@@ -86,6 +86,13 @@ func newAPIRouter(opts Options, uiServer http.Handler) *gin.Engine {
 	// Logging in cannot itself require being logged in.
 	r.POST("/v1/login", opts.Auth.Login)
 
+	// A freshly installed host reports completion here at the end of its
+	// kickstart. It has no credentials, so like ks.cfg this sits in front of
+	// the auth middleware and is authorised by source address against a host
+	// record instead. The by-id form below stays behind auth: that one is an
+	// operator re-running post-config by hand.
+	r.GET("/v1/postconfig", api.PostConfig(opts.SecretKey))
+
 	r.Use(logStaticFileRequests())
 
 	// The same boot files are also reachable over HTTPS, for hosts configured
@@ -162,11 +169,7 @@ func registerV1(r *gin.Engine, opts Options) {
 		users.DELETE(":id", api.DeleteUser)
 	}
 
-	postconfig := v1.Group("/postconfig")
-	{
-		postconfig.GET("", api.PostConfig(opts.SecretKey))
-		postconfig.GET(":id", api.PostConfigID(opts.SecretKey))
-	}
+	v1.GET("postconfig/:id", api.PostConfigID(opts.SecretKey))
 
 	if opts.LogServer != nil {
 		v1.GET("log", opts.LogServer.Handle)

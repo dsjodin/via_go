@@ -219,3 +219,14 @@ func TestBootRouterHasNoLogin(t *testing.T) {
 		t.Errorf("boot router serves /v1/login (%d); credentials would cross plain HTTP", rec.Code)
 	}
 }
+
+// Re-running post-configuration by hand is an operator action, so the by-id
+// form must stay behind authentication even though the host's own report does
+// not.
+func TestPostconfigByIDRequiresAuth(t *testing.T) {
+	apiRouter, _ := newRouters(t)
+
+	if code := get(apiRouter, "/v1/postconfig/1", false).Code; code != http.StatusUnauthorized {
+		t.Errorf("GET /v1/postconfig/1 without credentials = %d, want 401", code)
+	}
+}

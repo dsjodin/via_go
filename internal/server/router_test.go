@@ -111,6 +111,9 @@ func TestUnauthenticatedRoutesStayReachable(t *testing.T) {
 		path   string
 	}{
 		{"kickstart", apiRouter, "/ks.cfg"},
+		// A freshly installed host reports completion here at the end of its
+		// kickstart, with no credentials to offer.
+		{"install completion", apiRouter, "/v1/postconfig"},
 		{"boot files over https", apiRouter, "/esx/mboot.efi"},
 		{"boot files over http", bootRouter, "/esx/mboot.efi"},
 	} {
