@@ -58,6 +58,26 @@ func (o Option) Level() int {
 	return 0
 }
 
+// parseIPv4 returns the 4-byte form of a dotted quad.
+//
+// net.ParseIP returns the 16-byte IPv4-in-IPv6 representation for an IPv4
+// address, and every DHCP option defined over addresses is 4 octets wide, so
+// the result must be narrowed. An address that does not parse, or that is not
+// IPv4, is an error rather than a silently empty option.
+func parseIPv4(s string) (net.IP, error) {
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return nil, fmt.Errorf("%q is not a valid ip address", s)
+	}
+
+	v4 := ip.To4()
+	if v4 == nil {
+		return nil, fmt.Errorf("%q is not an ipv4 address", s)
+	}
+
+	return v4, nil
+}
+
 func (o Option) ToDHCPOption() (opt layers.DHCPOption, merge bool, err error) {
 	code := layers.DHCPOpt(o.OpCode)
 	switch code {
@@ -83,7 +103,12 @@ func (o Option) ToDHCPOption() (opt layers.DHCPOption, merge bool, err error) {
 		layers.DHCPOptBroadcastAddr,
 		layers.DHCPOptSolicitAddr:
 
-		return NewIPOption(code, net.ParseIP(o.Data)), false, nil
+		ip, err := parseIPv4(o.Data)
+		if err != nil {
+			return opt, false, err
+		}
+
+		return NewIPOption(code, ip), false, nil
 	case // n*net.IP
 		layers.DHCPOptRouter,
 		layers.DHCPOptTimeServer,
@@ -100,7 +125,12 @@ func (o Option) ToDHCPOption() (opt layers.DHCPOption, merge bool, err error) {
 		layers.DHCPOptNetBIOSTCPNS,
 		layers.DHCPOptNetBIOSTCPDDS:
 
-		return NewIPOption(code, net.ParseIP(o.Data).To4()), true, nil
+		ip, err := parseIPv4(o.Data)
+		if err != nil {
+			return opt, false, err
+		}
+
+		return NewIPOption(code, ip), true, nil
 	case // uint16
 		layers.DHCPOptBootfileSize,
 		layers.DHCPOptDatagramMTU,
