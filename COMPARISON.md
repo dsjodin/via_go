@@ -2,6 +2,12 @@
 
 Date of analysis: 2026-07-28
 
+> This document compares the *upstream* codebases, to decide what to fork.
+> For the separate question of whether to continue in this repo or in
+> [`dsjodin/hostdeployer`](https://github.com/dsjodin/hostdeployer), which
+> solves the same problem in PHP, see
+> [`ANALYSIS-hostdeployer-vs-via_go.md`](ANALYSIS-hostdeployer-vs-via_go.md).
+
 Both repos are by [maxiepax](https://github.com/maxiepax). They implement a
 replacement for VMware's Imaging Appliance (VIA): a single Go binary that acts as
 DHCP server, TFTP/HTTP boot server, `ks.cfg` (kickstart) generator and REST API,
