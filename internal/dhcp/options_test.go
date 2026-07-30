@@ -245,3 +245,135 @@ func TestAddOptionsAlwaysIncludesLeaseAndServerID(t *testing.T) {
 		}
 	}
 }
+
+// The stored options have to actually reach the client. The query that loads
+// them went missing when pools were removed, so the whole feature -- the
+// Option model, its Level() precedence, the opcode encoding, the /options API
+// -- was inert: an operator set an option, saw it stored, and it was never
+// sent. Every test below fails against that state.
+func TestAddOptionsSendsAGlobalOption(t *testing.T) {
+	host := newTestDB(t, testGroup())
+
+	// A global option: no host, no device class.
+	createOption(t, model.Option{OptionForm: model.OptionForm{
+		OpCode: byte(layers.DHCPOptDomainName),
+		Data:   "example.com",
+	}})
+
+	resp := &layers.DHCPv4{}
+	if err := AddOptions(request(byte(layers.DHCPOptDomainName)), resp, host, net.IPv4(192, 168, 1, 2)); err != nil {
+		t.Fatalf("AddOptions: %v", err)
+	}
+
+	got, ok := findOption(resp, layers.DHCPOptDomainName)
+	if !ok {
+		t.Fatal("the stored domain name never reached the response")
+	}
+	if string(got.Data) != "example.com" {
+		t.Errorf("domain name = %q, want %q", got.Data, "example.com")
+	}
+}
+
+// A host-specific option is more specific than a global one and must win.
+func TestAddOptionsHostOptionBeatsGlobal(t *testing.T) {
+	host := newTestDB(t, testGroup())
+
+	createOption(t, model.Option{OptionForm: model.OptionForm{
+		OpCode: byte(layers.DHCPOptDomainName),
+		Data:   "global.example.com",
+	}})
+	createOption(t, model.Option{OptionForm: model.OptionForm{
+		HostID: host.ID,
+		OpCode: byte(layers.DHCPOptDomainName),
+		Data:   "host.example.com",
+	}})
+
+	resp := &layers.DHCPv4{}
+	if err := AddOptions(request(byte(layers.DHCPOptDomainName)), resp, host, net.IPv4(192, 168, 1, 2)); err != nil {
+		t.Fatalf("AddOptions: %v", err)
+	}
+
+	got, ok := findOption(resp, layers.DHCPOptDomainName)
+	if !ok {
+		t.Fatal("no domain name option in the response")
+	}
+	if string(got.Data) != "host.example.com" {
+		t.Errorf("domain name = %q, want the host-specific value", got.Data)
+	}
+}
+
+// One host's options must not be handed to another. This is the failure that
+// would be hardest to notice: the client boots, just with someone else's
+// settings.
+func TestAddOptionsIgnoresAnotherHostsOptions(t *testing.T) {
+	host := newTestDB(t, testGroup())
+
+	other := model.Host{HostForm: model.HostForm{IP: "192.168.1.51", Mac: "00:0c:29:00:00:02"}}
+	if res := store.DB.Create(&other); res.Error != nil {
+		t.Fatalf("create other host: %v", res.Error)
+	}
+
+	createOption(t, model.Option{OptionForm: model.OptionForm{
+		HostID: other.ID,
+		OpCode: byte(layers.DHCPOptDomainName),
+		Data:   "not-yours.example.com",
+	}})
+
+	resp := &layers.DHCPv4{}
+	if err := AddOptions(request(byte(layers.DHCPOptDomainName)), resp, host, net.IPv4(192, 168, 1, 2)); err != nil {
+		t.Fatalf("AddOptions: %v", err)
+	}
+
+	if got, ok := findOption(resp, layers.DHCPOptDomainName); ok {
+		t.Errorf("got another host's option: %q", got.Data)
+	}
+}
+
+// An option the client did not ask for is still sent, at the end. Clients
+// commonly omit codes from the parameter request list and use them anyway.
+func TestAddOptionsSendsUnrequestedOptions(t *testing.T) {
+	host := newTestDB(t, testGroup())
+
+	createOption(t, model.Option{OptionForm: model.OptionForm{
+		OpCode: byte(layers.DHCPOptDomainName),
+		Data:   "example.com",
+	}})
+
+	resp := &layers.DHCPv4{}
+	// Ask only for the subnet mask.
+	if err := AddOptions(request(byte(layers.DHCPOptSubnetMask)), resp, host, net.IPv4(192, 168, 1, 2)); err != nil {
+		t.Fatalf("AddOptions: %v", err)
+	}
+
+	if _, ok := findOption(resp, layers.DHCPOptDomainName); !ok {
+		t.Error("an option that was stored but not requested should still be sent")
+	}
+}
+
+// An option that cannot be encoded must not take the rest of the response
+// with it: the client still needs its boot file and its subnet mask.
+func TestAddOptionsSkipsAnUnencodableOption(t *testing.T) {
+	host := newTestDB(t, testGroup())
+
+	createOption(t, model.Option{OptionForm: model.OptionForm{
+		OpCode: byte(layers.DHCPOptRouter),
+		Data:   "not-an-ip-address",
+	}})
+
+	resp := &layers.DHCPv4{}
+	if err := AddOptions(request(byte(layers.DHCPOptRouter), byte(layers.DHCPOptSubnetMask)), resp, host, net.IPv4(192, 168, 1, 2)); err != nil {
+		t.Fatalf("AddOptions: %v", err)
+	}
+
+	if _, ok := findOption(resp, layers.DHCPOptSubnetMask); !ok {
+		t.Error("a bad option stopped the good ones being sent")
+	}
+}
+
+func createOption(t *testing.T, o model.Option) {
+	t.Helper()
+
+	if res := store.DB.Create(&o); res.Error != nil {
+		t.Fatalf("create option: %v", res.Error)
+	}
+}

@@ -187,14 +187,38 @@ func groupGateway(g model.Group, opCode byte) (net.IP, error) {
 // AddOptions will try to add all requested options and the manually specified ones to the response
 func AddOptions(req *layers.DHCPv4, resp *layers.DHCPv4, lease *model.Host, ip net.IP) error {
 
-	var options []model.Option
-
 	// Try to find the device class
 	var deviceClass model.DeviceClass
 	for _, v := range req.Options {
 		if v.Type == 60 { // Vendor class
 			store.DB.Where("? LIKE '%' || vendor_class || '%'", string(v.Data)).First(&deviceClass)
 		}
+	}
+
+	// Load the options that apply to this client: the global ones, the ones
+	// set on this host, and the ones set on its device class -- but not the
+	// ones belonging to some other host or class.
+	//
+	// This query went missing when pools were removed. Without it the slice
+	// stayed empty and every custom option was silently dropped: the Option
+	// model, its Level() precedence, the opcode encoding and the whole
+	// /options API were inert, and an operator setting an option saw it
+	// stored and never sent.
+	//
+	// Ordered most specific first, which is what the grouping below relies on
+	// to decide precedence.
+	var options []model.Option
+	if res := store.DB.
+		Where("(device_class_id = 0 AND host_id = 0) OR host_id = ? OR device_class_id = ?", lease.ID, deviceClass.ID).
+		Where("device_class_id = 0 OR device_class_id = ?", deviceClass.ID).
+		Where("host_id = 0 OR host_id = ?", lease.ID).
+		Order("device_class_id desc").
+		Order("host_id desc").
+		Find(&options); res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		logrus.WithFields(logrus.Fields{
+			"host": lease.ID,
+			"err":  res.Error,
+		}).Error("dhcp: could not load the client's options")
 	}
 
 	// Group options by opcode
